@@ -1,0 +1,16 @@
+{
+  "name": "project-second-brain-lite",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0",
+    "build": "vite build",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "jsdom": "^27.0.0",
+    "vite": "^7.0.0",
+    "vitest": "^5.0.5"
+  }
+}
