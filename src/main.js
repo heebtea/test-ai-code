@@ -1,6 +1,6 @@
 import "./style.css";
 import { recognizeCard } from "./ocr.js";
-import { planCandidates, candidateRecord } from "./ocr-records.js";
+import { planReviewBatch } from "./ocr-review.js";
 import { timeline, drawTemplateJournal, journalSections } from "./journal.js";
 import {
   baseTemplate,
@@ -38,6 +38,7 @@ const names = {
   sleep: "睡眠",
   coffee: "咖啡",
   water: "飲水",
+  beverage: "飲品",
   activity: "活動",
   spending: "花費",
   meal: "餐點",
@@ -232,6 +233,7 @@ function render() {
     .querySelectorAll("[data-template-event]")
     .forEach((b) => (b.onclick = () => showEvent(b.dataset.templateEvent)));
   document.querySelector("#ocr-open").onclick = () => openOcr();
+  document.querySelector("#ocr-drafts").onclick = () => openOcr(null,true);
   document.querySelector("#template-new").onclick = () => templateEditor(null);
   document.querySelector("#template-edit").onclick = () =>
     templateEditor(selectedTemplate.id === "default" ? null : selectedTemplate);
@@ -362,8 +364,8 @@ function templateView() {
       titles: ["睡眠", "活動", "活動時間", "日照"],
     },
     food: {
-      types: ["meal", "coffee", "water", "spending"],
-      titles: ["餐點", "咖啡已飲用", "飲水", "已付款花費"],
+      types: ["meal", "coffee", "water", "beverage", "spending"],
+      titles: ["餐點", "咖啡已飲用", "飲水", "其他飲品已飲用", "已付款花費"],
     },
     highlight: { types: ["journal"], titles: ["今日亮點"] },
     body: { types: ["journal"], titles: ["身體狀況", "心情"] },
@@ -399,7 +401,7 @@ function templateView() {
       return `<details class="template-block ${key === "overview" ? "template-wide" : ""}"><summary><span class="template-label">${esc(selectedTemplate.illustration)} ${sectionNames[key]}</span><span class="template-snapshot">${vals.length ? vals.map((v) => `${esc(v.title)} ${esc(v.value)}`).join(" · ") : "尚無資料"}</span></summary><p>${vals.map((v) => `<span class="template-value"><b>${esc(v.title)}</b> ${esc(v.value)}</span>`).join("") || "尚無資料"}</p><div>${records.map((r) => `<button data-template-edit="${r.id}" ${blocked ? "disabled" : ""}>編輯${esc(names[r.type])}</button>`).join(" ")} ${addTypes.map((t) => `<button data-template-add="${t}" ${blocked ? "disabled" : ""}>＋ ${esc(names[t])}</button>`).join(" ")}</div></details>`;
     })
     .join("");
-  return `<section class="template-panel"><div class="template-controls"><div><small>YOUR JOURNAL</small><h2>我的小誌模板</h2></div><label>選擇模板<select id="template-select"><option value="default">生活小誌</option>${templates.map((t) => `<option value="${esc(t.id)}" ${t.id === selectedTemplate.id ? "selected" : ""}>${esc(t.name)}</option>`).join("")}</select></label><button id="template-new">匯入小誌圖卡</button><button id="ocr-open">辨識圖卡紀錄</button><button id="template-edit">修改模板</button></div><p class="template-hint">模板使用選取日期的紀錄；圖卡辨識結果須逐筆確認後才匯入。</p><details id="template-view"><summary>展開互動小誌</summary><div class="template-sheet"><header class="template-cover"><small>PROJECT SECOND BRAIN</small><h2>${esc(date)} · 生活小誌</h2><p>${esc(
+  return `<section class="template-panel"><div class="template-controls"><div><small>YOUR JOURNAL</small><h2>我的小誌模板</h2></div><label>選擇模板<select id="template-select"><option value="default">生活小誌</option>${templates.map((t) => `<option value="${esc(t.id)}" ${t.id === selectedTemplate.id ? "selected" : ""}>${esc(t.name)}</option>`).join("")}</select></label><button id="template-new">匯入小誌圖卡</button><button id="ocr-open">辨識圖卡紀錄</button><button id="ocr-drafts">待確認草稿（${data.records.filter(r=>r.type === "draft").length}）</button><button id="template-edit">修改模板</button></div><p class="template-hint">模板使用選取日期的紀錄；圖卡辨識結果須逐筆確認後才匯入。</p><details id="template-view"><summary>展開互動小誌</summary><div class="template-sheet"><header class="template-cover"><small>PROJECT SECOND BRAIN</small><h2>${esc(date)} · 生活小誌</h2><p>${esc(
     journalRows
       .map((r) => r.theme)
       .filter(Boolean)
@@ -550,13 +552,13 @@ function templateEditor(current) {
   d.showModal();
 }
 
-function openOcr(initialFile) {
+function openOcr(initialFile, showDrafts = false) {
   const d = document.querySelector("#ocr-dialog");
-  let candidates = [];
+  let candidates = showDrafts ? data.records.filter(r=>r.type==='draft').map(r=>({...JSON.parse(r.payload), type:r.classification, originSource:JSON.parse(r.payload).source||'', source:r.source, draftId:r.id, recommended:false, checked:false, reason:'已儲存的待確認草稿'})) : [];
   let imageUrl = null;
   let running = false;
   let imported = false;
-  d.innerHTML = `<h2 id="ocr-title">辨識小誌圖卡</h2><p>繁體中文在此裝置辨識，不上傳圖片。數值、餐飲及付款可能辨識錯誤；可信數據可批次選取；餐飲、付款與不明內容須確認。首次載入辨識模型可能較久。</p><label>選擇 PNG、JPG 或 WebP<input id="ocr-image" type="file" accept="image/png,image/jpeg,image/webp"></label><details class="ocr-original"><summary>查看原圖</summary><img id="ocr-preview" alt="圖卡原圖" class="reference-preview" hidden></details><p id="ocr-progress" role="status"></p><details><summary>查看辨識原文（可能有錯字）</summary><pre id="ocr-raw"></pre></details><div class="ocr-batch-tools"><button id="ocr-select-trusted" type="button">全選可信項目</button><button id="ocr-clear" type="button">全部取消</button></div><p id="ocr-totals" role="status"></p><div id="ocr-candidates"></div><p id="ocr-result" role="status"></p><button id="ocr-add-manual" type="button">＋ 手動新增候選</button><p class="error" role="alert"></p><div class="dialog-actions"><button id="ocr-cancel" type="button">取消</button><button id="ocr-commit" type="button" ${blocked ? "disabled" : ""}>一鍵確認匯入</button></div>`;
+  d.innerHTML = `<h2 id="ocr-title">辨識小誌圖卡</h2><p>繁體中文在此裝置辨識，不上傳圖片。數值、餐飲及付款可能辨識錯誤；可信數據可批次選取；餐飲、付款與不明內容須確認。首次載入辨識模型可能較久。</p><label>選擇 PNG、JPG 或 WebP<input id="ocr-image" type="file" accept="image/png,image/jpeg,image/webp"></label><details class="ocr-original"><summary>查看原圖</summary><img id="ocr-preview" alt="圖卡原圖" class="reference-preview" hidden></details><p id="ocr-progress" role="status"></p><details><summary>查看辨識原文（可能有錯字）</summary><pre id="ocr-raw"></pre></details><div class="ocr-batch-tools"><button id="ocr-select-all" type="button">全選全部</button><button id="ocr-select-trusted" type="button">只選可信項目</button><button id="ocr-clear" type="button">全部取消</button></div><p id="ocr-totals" role="status"></p><div id="ocr-candidates"></div><p id="ocr-result" role="status"></p><button id="ocr-add-manual" type="button">＋ 手動新增候選</button><p class="error" role="alert"></p><div class="dialog-actions"><button id="ocr-cancel" type="button">取消</button><button id="ocr-commit" type="button" ${blocked ? "disabled" : ""}>批次匯入選取項目</button></div>`;
   const list = d.querySelector("#ocr-candidates"),
     error = d.querySelector(".error");
   const labels = {
@@ -566,8 +568,11 @@ function openOcr(initialFile) {
     meal: "餐點",
     coffee: "咖啡",
     water: "飲水",
+    beverage: "飲品（茶等）",
     spending: "花費",
     event: "時間軸事件",
+    journal: "小誌文字",
+    unclassified: "待分類",
   };
   const fieldLabels = {
     date: "日期",
@@ -585,6 +590,7 @@ function openOcr(initialFile) {
     paymentDate: "付款日期",
     orderDate: "訂購日期",
     purchaseDate: "購買日期",
+    theme: "每日主題", highlight: "今日亮點", wellbeing: "身體狀況", mood: "心情", todo: "待辦事項",
   };
   const typeFields = {
     sleep: ["minutes", "score"],
@@ -600,8 +606,11 @@ function openOcr(initialFile) {
     ],
     coffee: ["volume", "amount", "purchaseDate", "startTime", "endTime"],
     water: ["volume"],
+    beverage: ["name", "volume", "amount", "paymentDate", "startTime", "endTime"],
     spending: ["amount"],
     event: ["name", "time"],
+    journal: ["theme", "highlight", "wellbeing", "mood", "todo"],
+    unclassified: ["name", "time"],
   };
   const typeOptions = Object.keys(typeFields);
   function collect(row) {
@@ -634,7 +643,7 @@ function openOcr(initialFile) {
           return `<label>${fieldLabels[k]}<input data-field="${k}" type="${kind}" ${numeric ? 'min="0" step="' + (k === "amount" ? "0.01" : "1") + '"' : ""} value="${esc(k === "source" ? (c.originSource ?? "") : (c[k] ?? ""))}"></label>`;
         })
         .join("") +
-      `<label>狀態（請確認）<select data-field="status"><option value="">請選擇</option>${statuses[type].map((v) => `<option value="${esc(v)}" ${c.status === v ? "selected" : ""}>${esc(v)}</option>`).join("")}</select></label>${type === "meal" ? `<label>付款狀態<select data-field="paid"><option value="">未確認</option><option value="yes" ${c.paid === "yes" ? "selected" : ""}>已付款</option><option value="no" ${c.paid === "no" ? "selected" : ""}>未付款</option></select></label>` : ""}${type === "coffee" ? `<label>付款方式（請確認）<select data-field="payment"><option value="">請選擇</option><option value="purchase" ${c.payment === "purchase" ? "selected" : ""}>購買</option><option value="voucher" ${c.payment === "voucher" ? "selected" : ""}>預付券</option></select></label>` : ""}`
+      `<label>狀態（請確認）<select data-field="status"><option value="">請選擇</option>${(statuses[type] || []).map((v) => `<option value="${esc(v)}" ${c.status === v ? "selected" : ""}>${esc(v)}</option>`).join("")}</select></label>${(type === "meal" || type === "beverage") ? `<label>付款狀態<select data-field="paid"><option value="">未確認</option><option value="yes" ${c.paid === "yes" ? "selected" : ""}>已付款</option><option value="no" ${c.paid === "no" ? "selected" : ""}>未付款</option></select></label>` : ""}${type === "coffee" ? `<label>付款方式（請確認）<select data-field="payment"><option value="">請選擇</option><option value="purchase" ${c.payment === "purchase" ? "selected" : ""}>購買</option><option value="voucher" ${c.payment === "voucher" ? "selected" : ""}>預付券</option></select></label><label>實際付款已確認？<select data-field="paidConfirm"><option value="">未確認</option><option value="yes" ${c.paidConfirm === "yes" ? "selected" : ""}>是</option></select></label>` : ""}`
     );
   }
   function updateConflict(row) {
@@ -665,6 +674,7 @@ function openOcr(initialFile) {
       v.date || "日期未確認",
       v.name || "",
       v.minutes !== undefined && v.minutes !== "" ? `${v.minutes} 分鐘` : "",
+      v.score !== undefined && v.score !== "" ? `分數 ${v.score}` : "",
       v.steps !== undefined && v.steps !== "" ? `${v.steps} 步` : "",
       v.volume !== undefined && v.volume !== "" ? `${v.volume} mL` : "",
       v.amount !== undefined && v.amount !== ""
@@ -708,13 +718,12 @@ function openOcr(initialFile) {
       `共 ${all.length} 筆 · 已選 ${selected} · 預設跳過 ${skipped} · 待處理 ${pending}`;
   }
   function draw() {
-    const sectionFor = (c) =>
-      c.duplicate ? "duplicate" : c.recommended ? "trusted" : "pending";
     const short = (c) =>
       [
         c.date || "日期未確認",
         c.name || "",
         c.minutes != null ? `${c.minutes} 分鐘` : "",
+        c.score != null ? `分數 ${c.score}` : "",
         c.steps != null ? `${c.steps} 步` : "",
         c.volume != null ? `${c.volume} mL` : "",
         c.amount != null ? `金額 ${c.amount} 待確認` : "",
@@ -743,23 +752,19 @@ function openOcr(initialFile) {
       ]
         .filter(Boolean)
         .join(" · ");
-    list.innerHTML = ["trusted", "pending", "duplicate"]
+    list.innerHTML = typeOptions
       .map((section) => {
         const entries = candidates
           .map((c, i) => ({ c, i }))
-          .filter(({ c }) => sectionFor(c) === section);
+          .filter(({ c }) => c.type === section);
         if (!entries.length) return "";
-        const titles = {
-          trusted: "可信數據",
-          pending: "需要確認",
-          duplicate: "可能重複或衝突（預設跳過）",
-        };
+        const titles = labels;
         return (
           `<h3 class="ocr-group">${titles[section]} · ${entries.length}</h3>` +
           entries
             .map(
               ({ c, i }) =>
-                `<section class="ocr-row" data-index="${i}" data-trusted="${!!c.recommended}" data-conflict="${!!c.duplicate}"><div class="ocr-row-head"><label><input type="checkbox" data-select ${c.checked ? "checked" : ""}> <span class="ocr-caption"><strong>${labels[c.type]}</strong><small>${esc(short(c))}</small></span></label><span class="ocr-badge">${esc(c.duplicate ? "可能重複" : c.reason || "待確認")}</span></div><details class="ocr-details"><summary>查看或修改</summary><label>紀錄類型<select data-field="type">${typeOptions.map((t) => `<option value="${t}" ${c.type === t ? "selected" : ""}>${labels[t]}</option>`).join("")}</select></label><p>原文線索：${esc(c.source || "手動新增")}</p><div class="ocr-fields">${fieldsHtml(c)}</div><p class="ocr-conflict"></p><label>衝突處理<select data-action><option value="skip">有同日同類就跳過</option><option value="merge">只補既有紀錄的空白欄位</option><option value="add">仍另存一筆（可能重複）</option></select></label><label>合併目標<select data-target><option value="">選擇既有紀錄</option></select></label><p class="ocr-row-error" role="alert"></p></details></section>`,
+                `<section class="ocr-row" data-index="${i}" data-trusted="${!!c.recommended}" data-conflict="${!!c.duplicate}"><div class="ocr-row-head"><label><input type="checkbox" data-select ${c.checked ? "checked" : ""}> <span class="ocr-caption"><strong>${labels[c.type]}</strong><small>${esc(short(c))}</small></span></label><span class="ocr-badge">${esc(c.duplicate ? "可能重複" : c.reason || "待確認")}</span></div><details class="ocr-details"><summary>查看或修改</summary><label>紀錄類型<select data-field="type">${typeOptions.map((t) => `<option value="${t}" ${c.type === t ? "selected" : ""}>${labels[t]}</option>`).join("")}</select></label><p>原文線索：${esc(c.source || "手動新增")}</p><div class="ocr-fields">${fieldsHtml(c)}</div><p class="ocr-conflict"></p><label class="ocr-verified"><input type="checkbox" data-verified> 我已逐項核對，可寫入正式紀錄（資訊不完整時仍存草稿）</label><label>衝突處理<select data-action><option value="skip">有同日同類就跳過</option><option value="merge">只補既有紀錄的空白欄位</option><option value="add">仍另存一筆（可能重複）</option></select></label><label>合併目標<select data-target><option value="">選擇既有紀錄</option></select></label>${c.draftId ? `<button type="button" data-delete-draft="${esc(c.draftId)}">刪除此草稿</button>` : ""}<p class="ocr-row-error" role="alert"></p></details></section>`,
             )
             .join("")
         );
@@ -767,6 +772,7 @@ function openOcr(initialFile) {
       .join("");
     list.querySelectorAll(".ocr-row").forEach((row) => {
       updateConflict(row);
+      row.querySelector('[data-delete-draft]')?.addEventListener('click',()=>confirmAction('刪除此草稿？',()=>{save(remove(data,row.querySelector('[data-delete-draft]').dataset.deleteDraft));imported=true;row.remove();updateTotals();}));
       row.querySelector("[data-field=type]").onchange = () => {
         const old = collect(row);
         const i = Number(row.dataset.index);
@@ -838,8 +844,9 @@ function openOcr(initialFile) {
       d.querySelector("#ocr-raw").textContent = [
         result.raw.whole,
         ...Object.entries(result.raw)
-          .filter(([k]) => k !== "whole" && k !== "confidences")
+          .filter(([k]) => k !== "whole" && k !== "confidences" && k !== "regions")
           .map(([k, v]) => `[${k}] ${v}`),
+        ...Object.entries(result.raw.regions || {}).map(([k,v])=>`[${k}] ${v}`),
       ].join("\n");
       d.querySelector("#ocr-progress").textContent =
         `辨識完成：${candidates.length} 筆候選。可信項目已預選，請確認摘要；其他項目可展開修改。`;
@@ -859,6 +866,8 @@ function openOcr(initialFile) {
     const oldRows = [...list.querySelectorAll(".ocr-row")];
     const state = oldRows.map((row) => ({
       checked: row.querySelector("[data-select]").checked,
+      verified: row.querySelector("[data-verified]").checked,
+      trusted: row.dataset.trusted,
       action: row.querySelector("[data-action]").value,
       target: row.querySelector("[data-target]").value,
     }));
@@ -869,14 +878,18 @@ function openOcr(initialFile) {
     }));
     candidates = [...current, { type: "event", date: "", source: "手動新增" }];
     draw();
-    list.querySelectorAll(".ocr-row").forEach((row, i) => {
+    list.querySelectorAll(".ocr-row").forEach((row) => {
+      const i = Number(row.dataset.index);
       if (state[i]) {
+        row.querySelector("[data-verified]").checked = state[i].verified;
+        row.dataset.trusted = state[i].trusted;
         row.querySelector("[data-select]").checked = state[i].checked;
         row.querySelector("[data-action]").value = state[i].action;
         row.querySelector("[data-target]").value = state[i].target;
       }
     });
   };
+  d.querySelector("#ocr-select-all").onclick = () => {list.querySelectorAll("[data-select]").forEach(box=>box.checked=true);updateTotals();};
   d.querySelector("#ocr-select-trusted").onclick = () => {
     list.querySelectorAll(".ocr-row").forEach((row) => {
       row.querySelector("[data-select]").checked =
@@ -893,88 +906,23 @@ function openOcr(initialFile) {
   d.querySelector("#ocr-cancel").onclick = () => d.close();
   d.querySelector("#ocr-commit").onclick = () => {
     try {
-      if (running) throw Error("請等辨識完成");
-      const rows = [...list.querySelectorAll(".ocr-row")],
-        selected = rows.filter((r) => r.querySelector("[data-select]").checked);
-      const items = [];
-      let invalid = 0;
-      for (const row of selected) {
-        const item = {
-          id: crypto.randomUUID(),
-          values: collect(row),
-          action: row.querySelector("[data-action]").value,
-          target: row.querySelector("[data-target]").value,
-        };
-        try {
-          candidateRecord(item.values, item.id);
-          row.querySelector(".ocr-row-error").textContent = "";
-          items.push(item);
-        } catch (err) {
-          invalid++;
-          row.querySelector(".ocr-row-error").textContent =
-            "待確認：" + err.message;
-          row.querySelector(".ocr-details").open = true;
-          row.querySelector("[data-select]").checked = false;
-        }
-      }
-      updateTotals();
-      const existingSkips = rows.filter((row) => {
-        const v = collect(row);
-        return (
-          !row.querySelector("[data-select]").checked &&
-          data.records.some((r) => r.type === v.type && r.date === v.date)
-        );
-      }).length;
-      if (!items.length && (invalid || !existingSkips))
-        throw Error(
-          invalid ? "選取項目尚需確認，請展開修正" : "請先選取可信或已確認項目",
-        );
-      const preview = planCandidates(data, items);
-      const unselected = rows.filter(
-        (r) => !r.querySelector("[data-select]").checked,
-      );
-      const automaticSkipped = unselected.filter((row) => {
-        const v = collect(row);
-        return preview.data.records.some(
-          (r) => r.type === v.type && r.date === v.date,
-        );
-      }).length;
-      const skipped = preview.skipped + automaticSkipped;
-      const pending = unselected.length - automaticSkipped;
-      confirmAction(
-        `匯入總覽：成功 ${preview.added + preview.merged} 筆（新增 ${preview.added}、補空白 ${preview.merged}），跳過 ${skipped} 筆，待處理 ${pending} 筆。確認後才會寫入；未處理的候選只保留在這個視窗，關閉後需重新辨識。`,
-        () => {
-          const next = planCandidates(data, items);
-          const successful = next.added + next.merged;
-          if (successful) {
-            save(next.data);
-            imported = true;
-          }
-          d.querySelector("#ocr-result").textContent =
-            `已匯入 ${successful} 筆，跳過 ${next.skipped + automaticSkipped} 筆，待處理 ${pending} 筆。`;
-          for (const row of selected) {
-            if (!row.querySelector("[data-select]").checked) continue;
-            row.remove();
-          }
-          list.querySelectorAll(".ocr-row").forEach((row) => {
-            updateConflict(row);
-            const v = collect(row);
-            row.dataset.conflict = String(
-              data.records.some((r) => r.type === v.type && r.date === v.date),
-            );
-            if (row.dataset.conflict === "true") {
-              row.dataset.trusted = "false";
-              row.querySelector("[data-select]").checked = false;
-              row.querySelector(".ocr-badge").textContent =
-                "可能重複，預設跳過";
-            }
-          });
-          updateTotals();
-        },
-      );
-    } catch (err) {
-      error.textContent = "尚未匯入：" + err.message;
-    }
+      if(running)throw Error('請等辨識完成');
+      const selected=[...list.querySelectorAll('.ocr-row')].filter(r=>r.querySelector('[data-select]').checked);
+      if(!selected.length)throw Error('請先選取候選項目');
+      const items=selected.map(row=>({index:Number(row.dataset.index),id:crypto.randomUUID(),draftId:candidates[Number(row.dataset.index)].draftId||null,source:candidates[Number(row.dataset.index)].source||'',values:collect(row),action:row.querySelector('[data-action]').value,target:row.querySelector('[data-target]').value,trusted:row.dataset.trusted==='true'&&row.dataset.conflict!=='true',recommended:!!candidates[Number(row.dataset.index)].recommended,verified:row.querySelector('[data-verified]').checked}));
+      const preview=planReviewBatch(data,items);
+      const notSelected=[...list.querySelectorAll('.ocr-row')].filter(row=>!row.querySelector('[data-select]').checked);
+      const unselectedSkipped=notSelected.filter(row=>row.dataset.conflict==='true').length;
+      const pending=notSelected.length-unselectedSkipped;
+      confirmAction(`匯入總覽：成功 ${preview.added+preview.merged} 筆，跳過 ${preview.skipped+unselectedSkipped} 筆，暫存待確認 ${preview.drafts} 筆，失敗 ${preview.failed} 筆，未選待處理 ${pending} 筆。草稿不計入花費或攝取，只有本次確認才會寫入。`,()=>{
+        const result=planReviewBatch(data,items);
+        if(result.added||result.merged||result.drafts){save(result.data);imported=true;}
+        d.querySelector('#ocr-result').textContent=`成功 ${result.added+result.merged} 筆，跳過 ${result.skipped+unselectedSkipped} 筆，暫存待確認 ${result.drafts} 筆，失敗 ${result.failed} 筆，待處理 ${pending} 筆。`;
+        for(const entry of result.results){const row=selected.find(r=>Number(r.dataset.index)===entry.index);if(!row)continue;if(entry.kind==='failed'){row.querySelector('.ocr-row-error').textContent='未儲存，請檢查後重試';row.querySelector('.ocr-details').open=true}else row.remove();}
+        list.querySelectorAll('.ocr-row').forEach(row=>{updateConflict(row);const v=collect(row);row.dataset.conflict=String(data.records.some(r=>r.type===v.type&&r.date===v.date));if(row.dataset.conflict==='true'){row.dataset.trusted='false';row.querySelector('[data-select]').checked=false;row.querySelector('.ocr-badge').textContent='可能重複，預設跳過';}});
+        updateTotals();
+      });
+    }catch(err){error.textContent='尚未匯入：'+err.message;}
   };
 
   d.onclose = () => {
@@ -982,6 +930,7 @@ function openOcr(initialFile) {
     if (imported) render();
   };
   d.showModal();
+  if (showDrafts) draw();
   if (initialFile) run(initialFile);
 }
 
@@ -1094,6 +1043,7 @@ function edit(type, record) {
       ? { payment: "purchase", purchaseDate: null, startTime: "", endTime: "" }
       : {}),
     ...(type === "event" ? { name: "" } : {}),
+    ...(type === "beverage" ? { name:"", paid:null, paymentDate:null, startTime:"", endTime:"" } : {}),
     ...(type === "journal"
       ? { theme: "", highlight: "", wellbeing: "", mood: "", todo: "" }
       : {}),
@@ -1110,7 +1060,7 @@ function edit(type, record) {
     ...(type === "sunlight" ? { source: "" } : {}),
   };
   const d = document.querySelector("#editor");
-  d.innerHTML = `<form id="edit-form"><h2 id="dialog-title">${record ? "編輯" : "新增"}${names[type]}</h2><p>${r.date} · 空白代表未知。餐點紀錄不代表已食用；只有「吃完」才算完整食用。${type === "coffee" ? "兌換券請勿填金額；飲用中不計入已飲用量。購買日與飲用紀錄日分開計算。" : ""}</p><div id="form-fields"><label>${type === "meal" ? "預定／實際用餐日期" : "紀錄日期"}<input name="date" type="date" value="${r.date}" required></label>${type === "journal" ? ["theme", "highlight", "wellbeing", "mood", "todo"].map((key, i) => `<label>${["每日主題", "今日亮點", "身體狀況", "心情", "待辦事項"][i]}<textarea name="${key}" maxlength="500">${esc(r[key])}</textarea></label>`).join("") : ""}${type === "event" ? `<label>事件名稱<input name="name" maxlength="100" required value="${esc(r.name)}"></label>` : ""}${type === "coffee" ? `<label>開始飲用<input name="startTime" type="time" value="${r.startTime ?? ""}"></label><label>結束飲用<input name="endTime" type="time" value="${r.endTime ?? ""}"></label>` : ""}${type === "meal" ? `<label>訂購日期（未知留空）<input name="orderDate" type="date" value="${r.orderDate ?? ""}"></label><label>餐點名稱<input name="name" maxlength="100" required value="${esc(r.name)}"></label><label>付款狀態<select name="paid"><option value="unknown" ${r.paid === null ? "selected" : ""}>未確認</option><option value="yes" ${r.paid === true ? "selected" : ""}>已付款</option><option value="no" ${r.paid === false ? "selected" : ""}>未付款</option></select></label><label>實際付款日期<input type="date" name="paymentDate" value="${r.paymentDate ?? ""}"></label><label>開始用餐<input type="time" name="startTime" value="${r.startTime}"></label><label>結束用餐<input type="time" name="endTime" value="${r.endTime}"></label>` : ""}${type === "sunlight" ? `<label>來源（如 Apple Watch）<input name="source" maxlength="100" value="${esc(r.source)}"></label>` : ""}${type === "coffee" ? `<label>實際購買日期（未知留空）<input name="purchaseDate" type="date" value="${r.purchaseDate === undefined ? r.date : (r.purchaseDate ?? "")}"></label>` : ""}${Object.entries(
+  d.innerHTML = `<form id="edit-form"><h2 id="dialog-title">${record ? "編輯" : "新增"}${names[type]}</h2><p>${r.date} · 空白代表未知。餐點紀錄不代表已食用；只有「吃完」才算完整食用。${type === "coffee" ? "兌換券請勿填金額；飲用中不計入已飲用量。購買日與飲用紀錄日分開計算。" : ""}</p><div id="form-fields"><label>${type === "meal" ? "預定／實際用餐日期" : "紀錄日期"}<input name="date" type="date" value="${r.date}" required></label>${type === "journal" ? ["theme", "highlight", "wellbeing", "mood", "todo"].map((key, i) => `<label>${["每日主題", "今日亮點", "身體狀況", "心情", "待辦事項"][i]}<textarea name="${key}" maxlength="500">${esc(r[key])}</textarea></label>`).join("") : ""}${type === "beverage" ? `<label>飲品名稱<input name="name" maxlength="100" required value="${esc(r.name)}"></label><label>付款狀態<select name="paid"><option value="unknown" ${r.paid === null ? "selected" : ""}>未確認</option><option value="yes" ${r.paid === true ? "selected" : ""}>已付款</option><option value="no" ${r.paid === false ? "selected" : ""}>未付款</option></select></label><label>付款日期<input type="date" name="paymentDate" value="${r.paymentDate ?? ""}"></label><label>開始飲用<input name="startTime" type="time" value="${r.startTime}"></label><label>結束飲用<input name="endTime" type="time" value="${r.endTime}"></label>` : ""}${type === "event" ? `<label>事件名稱<input name="name" maxlength="100" required value="${esc(r.name)}"></label>` : ""}${type === "coffee" ? `<label>開始飲用<input name="startTime" type="time" value="${r.startTime ?? ""}"></label><label>結束飲用<input name="endTime" type="time" value="${r.endTime ?? ""}"></label>` : ""}${type === "meal" ? `<label>訂購日期（未知留空）<input name="orderDate" type="date" value="${r.orderDate ?? ""}"></label><label>餐點名稱<input name="name" maxlength="100" required value="${esc(r.name)}"></label><label>付款狀態<select name="paid"><option value="unknown" ${r.paid === null ? "selected" : ""}>未確認</option><option value="yes" ${r.paid === true ? "selected" : ""}>已付款</option><option value="no" ${r.paid === false ? "selected" : ""}>未付款</option></select></label><label>實際付款日期<input type="date" name="paymentDate" value="${r.paymentDate ?? ""}"></label><label>開始用餐<input type="time" name="startTime" value="${r.startTime}"></label><label>結束用餐<input type="time" name="endTime" value="${r.endTime}"></label>` : ""}${type === "sunlight" ? `<label>來源（如 Apple Watch）<input name="source" maxlength="100" value="${esc(r.source)}"></label>` : ""}${type === "coffee" ? `<label>實際購買日期（未知留空）<input name="purchaseDate" type="date" value="${r.purchaseDate === undefined ? r.date : (r.purchaseDate ?? "")}"></label>` : ""}${Object.entries(
     fields[type],
   )
     .map(
@@ -1127,11 +1077,11 @@ function edit(type, record) {
       const values = Object.fromEntries(new FormData(e.target));
       for (const k of Object.keys(fields[type]))
         values[k] = values[k].trim() === "" ? null : Number(values[k]);
-      if (type === "meal") {
+      if (type === "meal" || type === "beverage") {
         values.paid =
           values.paid === "yes" ? true : values.paid === "no" ? false : null;
         values.paymentDate = values.paymentDate || null;
-        values.orderDate = values.orderDate || null;
+        if(type === "meal") values.orderDate = values.orderDate || null;
       }
       if (type === "coffee") values.purchaseDate = values.purchaseDate || null;
       save(upsert(data, { ...r, ...values }));

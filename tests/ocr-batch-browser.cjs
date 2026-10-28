@@ -56,6 +56,7 @@ const server = spawn(
         await row.locator("[data-field=date]").fill("2026-01-02");
         await row.locator("[data-field=minutes]").fill("380");
         await row.locator("[data-field=status]").selectOption("已完成");
+        await row.locator("[data-verified]").check();
         await row.locator("[data-select]").check();
         await p.locator("#ocr-add-manual").click();
         assert.equal(await p.locator("[data-select]:checked").count(), 1);
@@ -95,7 +96,7 @@ const server = spawn(
         await p.locator("#yes").click();
         await p
           .locator("#ocr-result")
-          .getByText(/已匯入 1 筆/)
+          .getByText(/成功 1 筆/)
           .waitFor();
         const rec = await p.evaluate(
           () =>
@@ -119,3 +120,4 @@ const server = spawn(
   console.error(e);
   process.exitCode = 1;
 });
+

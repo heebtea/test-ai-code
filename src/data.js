@@ -40,6 +40,8 @@ export const fields = {
   sunlight: { minutes: 1440 },
   event: {},
   journal: {},
+  draft: {},
+  beverage: {volume:100000, amount:100000000},
 };
 const statuses = {
   sleep: ["已完成"],
@@ -51,6 +53,8 @@ const statuses = {
   sunlight: ["已記錄"],
   event: ["已記錄"],
   journal: ["已記錄"],
+  draft: ["待確認"],
+  beverage: ["未確認", "已購買", "飲用中", "已飲用"],
 };
 export { statuses };
 export function validateRecord(r) {
@@ -67,6 +71,8 @@ export function validateRecord(r) {
     ...(r.type === "coffee" ? ["payment"] : []),
     ...(r.type === "coffee" ? ["purchaseDate", "startTime", "endTime"] : []),
     ...(r.type === "event" ? ["name"] : []),
+    ...(r.type === "draft" ? ["classification", "payload", "source"] : []),
+    ...(r.type === "beverage" ? ["name", "paid", "paymentDate", "startTime", "endTime"] : []),
     ...(r.type === "journal"
       ? ["theme", "highlight", "wellbeing", "mood", "todo"]
       : []),
@@ -79,8 +85,8 @@ export function validateRecord(r) {
     Object.keys(r).some((k) => !allowed.includes(k)) ||
     typeof r.id !== "string" ||
     !/^[a-zA-Z0-9_-]{1,100}$/.test(r.id) ||
-    !validDate(r.date) ||
-    !types.includes(r.type) ||
+    !(validDate(r.date) || (r.type === "draft" && r.date === "")) ||
+    !(types.includes(r.type) || r.type === "draft" || r.type === "beverage") ||
     !statuses[r.type].includes(r.status)
   )
     throw Error("紀錄 ID、日期、類別或狀態無效");
@@ -91,6 +97,10 @@ export function validateRecord(r) {
     (r.time !== "" && !/^([01]\d|2[0-3]):[0-5]\d$/.test(r.time))
   )
     throw Error("文字或時間格式無效");
+  if (r.type === "draft") {
+    if (typeof r.classification !== "string" || !["sleep","activity","sunlight","meal","coffee","water","spending","event","journal","beverage","unclassified"].includes(r.classification) || typeof r.payload !== "string" || r.payload.length > 10000 || typeof r.source !== "string" || r.source.length > 500) throw Error("草稿格式無效");
+    try { const p = JSON.parse(r.payload); if (!p || typeof p !== "object" || Array.isArray(p)) throw Error(); } catch { throw Error("草稿內容無效"); }
+  }
   if (
     r.type === "journal" &&
     (["theme", "highlight", "wellbeing", "mood", "todo"].some(
@@ -118,6 +128,11 @@ export function validateRecord(r) {
       (r.startTime && r.endTime && r.endTime < r.startTime))
   )
     throw Error("咖啡時間無效或結束早於開始");
+  if (r.type === "beverage") {
+    if (typeof r.name !== 'string' || !r.name.trim() || r.name.length>100 || ![true,false,null].includes(r.paid) || !(r.paymentDate===null || validDate(r.paymentDate)) || !timeValid(r.startTime) || !timeValid(r.endTime)) throw Error('飲品名稱、付款或時間格式無效');
+    if(r.paid !== true && r.paymentDate !== null)throw Error('未付款或未確認付款時，付款日期請留空');
+    if(r.startTime && r.endTime && r.endTime < r.startTime)throw Error('結束時間不可早於開始時間');
+  }
   if (r.type === "meal") {
     if (
       typeof r.name !== "string" ||
@@ -174,6 +189,8 @@ export function validateRecord(r) {
     r.type !== "meal" &&
     r.type !== "event" &&
     r.type !== "journal" &&
+    r.type !== "draft" &&
+    r.type !== "beverage" &&
     !(r.type === "sunlight" && r.source.trim()) &&
     !r.note.trim() &&
     !r.time
@@ -184,12 +201,12 @@ export function validateRecord(r) {
 export function validate(data) {
   if (
     !data ||
-    ![2, 3, 4, 5].includes(data.version) ||
+    ![2, 3, 4, 5, 6].includes(data.version) ||
     !Array.isArray(data.records) ||
     Object.keys(data).some((k) => !["version", "records"].includes(k)) ||
     data.records.length > 10000
   )
-    throw Error("僅接受 v2 / v3 / v4 / v5 備份（最多 10000 筆）");
+    throw Error("僅接受 v2 / v3 / v4 / v5 / v6 備份（最多 10000 筆）");
   const ids = new Set();
   for (const r of data.records) {
     if (data.version === 2 && ["meal", "sunlight"].includes(r.type))
@@ -203,6 +220,7 @@ export function validate(data) {
       throw Error("新事件格式請使用 v4 備份");
     if (data.version < 5 && r.type === "journal")
       throw Error("小誌內容請使用 v5 備份");
+    if (data.version < 6 && ["draft", "beverage"].includes(r.type)) throw Error("草稿請使用 v6 備份");
     validateRecord(r);
     if (ids.has(r.id)) throw Error("備份含重複 ID");
     ids.add(r.id);
@@ -225,7 +243,7 @@ export function upsert(data, r) {
   if (old && old.type !== r.type) throw Error("不可變更既有 ID 的類別");
   return validate({
     ...data,
-    version: 5,
+    version: data.version === 6 || ["draft", "beverage"].includes(r.type) ? 6 : 5,
     records: [...data.records.filter((x) => x.id !== r.id), r],
   });
 }
@@ -248,7 +266,7 @@ export function merge(data, incoming) {
     )
       conflicts++;
   }
-  return { data: validate({ version: 5, records }), added, conflicts };
+  return { data: validate({ version: data.version === 6 || incoming.version === 6 ? 6 : 5, records }), added, conflicts };
 }
 export function loadRecords(storage) {
   const s = storage.getItem(STORAGE_KEY);
@@ -279,6 +297,7 @@ export function expenses(data, date) {
       (r.type === "coffee" &&
         r.payment === "purchase" &&
         (r.purchaseDate === undefined ? r.date : r.purchaseDate) === date) ||
-      (r.type === "meal" && r.paid === true && r.paymentDate === date),
+      (r.type === "meal" && r.paid === true && r.paymentDate === date) ||
+      (r.type === "beverage" && r.paid === true && r.paymentDate === date),
   );
 }
