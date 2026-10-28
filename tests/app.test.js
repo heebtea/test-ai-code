@@ -25,7 +25,9 @@ it("CRUD, stable correction, date isolation", () => {
   expect(m.sum(d.records, "volume").value).toBe(300);
   expect(m.rows(d, "2026-01-03", "water")).toEqual([]);
   expect(m.remove(d, "test-id").records).toEqual([]);
-  expect(() => m.upsert(d, r("water", { date: "2026-01-03" }))).toThrow();
+  expect(m.upsert(d, r("water", { date: "2026-01-03" })).records[0].date).toBe(
+    "2026-01-03",
+  );
 });
 it("unknown is not zero; expenses sum individually and exclude vouchers/unpaid", () => {
   const coffee = r("coffee", {
@@ -69,6 +71,17 @@ it("all types can be corrected and deleted", () => {
       time: "",
       ...Object.fromEntries(Object.keys(m.fields[type]).map((k) => [k, null])),
       ...(type === "coffee" ? { payment: "purchase" } : {}),
+      ...(type === "meal"
+        ? {
+            name: "測試餐點",
+            paid: null,
+            paymentDate: null,
+            orderDate: null,
+            startTime: "",
+            endTime: "",
+          }
+        : {}),
+      ...(type === "sunlight" ? { source: "" } : {}),
     };
     const d = m.upsert(m.empty(), v);
     expect(m.upsert(d, { ...v, note: "corrected" }).records).toHaveLength(1);
@@ -124,7 +137,7 @@ beforeEach(async () => {
   await import("../src/main.js");
 });
 it("UI empty, add, edit same ID, date isolation and delete confirmation", () => {
-  expect(document.querySelectorAll(".metric")).toHaveLength(5);
+  expect(document.querySelectorAll(".metric")).toHaveLength(7);
   expect(
     [...document.querySelectorAll(".metric")].every(
       (e) => e.textContent === "尚無資料",
