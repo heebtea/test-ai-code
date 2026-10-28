@@ -7,9 +7,10 @@ export const types = [
   "activity",
   "sunlight",
   "meal",
+  "event",
   "spending",
 ];
-export const empty = () => ({ version: 3, records: [] });
+export const empty = () => ({ version: 4, records: [] });
 export function localDate(d = new Date()) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
@@ -36,6 +37,7 @@ export const fields = {
   spending: { amount: 100000000 },
   meal: { amount: 100000000 },
   sunlight: { minutes: 1440 },
+  event: {},
 };
 const statuses = {
   sleep: ["已完成"],
@@ -45,6 +47,7 @@ const statuses = {
   spending: ["未付款", "已付款"],
   meal: ["未確認", "部分", "吃完"],
   sunlight: ["已記錄"],
+  event: ["已記錄"],
 };
 export { statuses };
 export function validateRecord(r) {
@@ -59,7 +62,8 @@ export function validateRecord(r) {
     "time",
     ...Object.keys(fields[r.type] || {}),
     ...(r.type === "coffee" ? ["payment"] : []),
-    ...(r.type === "coffee" ? ["purchaseDate"] : []),
+    ...(r.type === "coffee" ? ["purchaseDate", "startTime", "endTime"] : []),
+    ...(r.type === "event" ? ["name"] : []),
     ...(r.type === "meal"
       ? ["name", "paid", "paymentDate", "orderDate", "startTime", "endTime"]
       : []),
@@ -83,6 +87,21 @@ export function validateRecord(r) {
     throw Error("文字或時間格式無效");
   const timeValid = (v) =>
     typeof v === "string" && (v === "" || /^([01]\d|2[0-3]):[0-5]\d$/.test(v));
+  if (
+    r.type === "event" &&
+    (typeof r.name !== "string" ||
+      !r.name.trim() ||
+      r.name.length > 100 ||
+      !r.time)
+  )
+    throw Error("事件請填名稱及時間");
+  if (
+    r.type === "coffee" &&
+    ((r.startTime !== undefined && !timeValid(r.startTime)) ||
+      (r.endTime !== undefined && !timeValid(r.endTime)) ||
+      (r.startTime && r.endTime && r.endTime < r.startTime))
+  )
+    throw Error("咖啡時間無效或結束早於開始");
   if (r.type === "meal") {
     if (
       typeof r.name !== "string" ||
@@ -137,6 +156,7 @@ export function validateRecord(r) {
   if (
     !Object.keys(fields[r.type]).some((k) => r[k] !== null) &&
     r.type !== "meal" &&
+    r.type !== "event" &&
     !(r.type === "sunlight" && r.source.trim()) &&
     !r.note.trim() &&
     !r.time
@@ -147,16 +167,23 @@ export function validateRecord(r) {
 export function validate(data) {
   if (
     !data ||
-    ![2, 3].includes(data.version) ||
+    ![2, 3, 4].includes(data.version) ||
     !Array.isArray(data.records) ||
     Object.keys(data).some((k) => !["version", "records"].includes(k)) ||
     data.records.length > 10000
   )
-    throw Error("僅接受 v2 / v3 備份（最多 10000 筆）");
+    throw Error("僅接受 v2 / v3 / v4 備份（最多 10000 筆）");
   const ids = new Set();
   for (const r of data.records) {
     if (data.version === 2 && ["meal", "sunlight"].includes(r.type))
       throw Error("新類別請使用 v3 備份");
+    if (
+      data.version < 4 &&
+      (r.type === "event" ||
+        (r.type === "coffee" &&
+          (r.startTime !== undefined || r.endTime !== undefined)))
+    )
+      throw Error("新事件格式請使用 v4 備份");
     validateRecord(r);
     if (ids.has(r.id)) throw Error("備份含重複 ID");
     ids.add(r.id);
@@ -179,7 +206,7 @@ export function upsert(data, r) {
   if (old && old.type !== r.type) throw Error("不可變更既有 ID 的類別");
   return validate({
     ...data,
-    version: 3,
+    version: 4,
     records: [...data.records.filter((x) => x.id !== r.id), r],
   });
 }
@@ -202,7 +229,7 @@ export function merge(data, incoming) {
     )
       conflicts++;
   }
-  return { data: validate({ version: 3, records }), added, conflicts };
+  return { data: validate({ version: 4, records }), added, conflicts };
 }
 export function loadRecords(storage) {
   const s = storage.getItem(STORAGE_KEY);

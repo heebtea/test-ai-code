@@ -351,3 +351,149 @@ dialog p {
     font-size: 11px;
   }
 }
+/* v0.4: journal cards and timeline */
+.card-toggle {
+  display: block;
+  text-align: left;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  margin: 12px 0;
+  min-height: 54px;
+  color: var(--text);
+}
+.card-cue {
+  display: block;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 400;
+  letter-spacing: 0.03em;
+  margin-top: 6px;
+}
+.card-toggle:hover .card-cue {
+  color: var(--accent);
+}
+.card {
+  background-image: linear-gradient(
+    150deg,
+    transparent 60%,
+    color-mix(in srgb, var(--accent) 8%, transparent)
+  );
+}
+.card-head h2:before {
+  content: "✳";
+  color: var(--accent);
+  margin-right: 7px;
+}
+.timeline {
+  padding: 18px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  border-radius: 16px;
+}
+.timeline > summary {
+  font-weight: 700;
+  color: var(--text);
+  font-size: 17px;
+}
+.timeline ul {
+  list-style: none;
+  padding: 0;
+}
+.timeline li {
+  padding: 4px 0;
+}
+.timeline-event {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  text-align: left;
+  gap: 14px;
+}
+.timeline-event time {
+  font-variant-numeric: tabular-nums;
+  color: var(--accent);
+  font-weight: 700;
+}
+.timeline-event span {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+}
+.timeline-event small {
+  color: var(--muted);
+}
+.timeline-event img {
+  height: 48px;
+  width: 48px;
+  object-fit: cover;
+  border-radius: 8px;
+}
+.detail-photo {
+  width: 100%;
+  max-height: 240px;
+  object-fit: contain;
+}
+.photo-info {
+  color: var(--muted);
+}
+.photo-upload {
+  font-size: 13px;
+}
+.photo-upload input {
+  display: block;
+  max-width: 100%;
+  margin: 8px 0;
+}
+.journal-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 24px;
+  margin: 18px 0;
+}
+.journal-banner small {
+  color: var(--accent);
+  letter-spacing: 0.16em;
+}
+.journal-banner h2 {
+  font-family: Georgia, serif;
+  font-size: 24px;
+  margin: 10px 0;
+}
+.journal-banner p {
+  font-size: 13px;
+  color: var(--muted);
+}
+#journal-canvas {
+  display: block;
+  width: min(100%, 360px);
+  height: auto;
+  margin: 12px auto;
+  border: 1px solid var(--line);
+}
+#journal-dialog {
+  width: min(520px, calc(100% - 24px));
+}
+@media (max-width: 560px) {
+  .card-toggle {
+    font-size: 17px;
+    min-height: 60px;
+  }
+  .journal-banner {
+    align-items: flex-start;
+    flex-direction: column;
+    padding: 18px;
+  }
+  .journal-banner button {
+    width: 100%;
+  }
+  .timeline {
+    padding: 14px;
+  }
+}

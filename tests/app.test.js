@@ -82,6 +82,7 @@ it("all types can be corrected and deleted", () => {
           }
         : {}),
       ...(type === "sunlight" ? { source: "" } : {}),
+      ...(type === "event" ? { name: "測試事件", time: "12:00" } : {}),
     };
     const d = m.upsert(m.empty(), v);
     expect(m.upsert(d, { ...v, note: "corrected" }).records).toHaveLength(1);
