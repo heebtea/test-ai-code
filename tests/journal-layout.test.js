@@ -53,7 +53,7 @@ it("wraps Chinese and long unbroken text, preserving the characters", () => {
   expect(lines.every((line) => ctx.measureText(line).width <= 130)).toBe(true);
 });
 it("uses tall measured cards and draws far more than 3 events within the PNG", () => {
-  const { canvas, ctx, drawn } = fakeCanvas();
+  const { canvas, drawn } = fakeCanvas();
   const template = baseTemplate();
   const plan = renderJournalTemplate(canvas, sections, events, "2026-10-28", template);
   expect(canvas.width).toBe(1080);
