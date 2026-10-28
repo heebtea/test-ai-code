@@ -1,34 +1,37 @@
-# test-ai-code
-讓 GPT 寫程式的測試用
+# Project Second Brain Lite v0.2
 
-## Project Second Brain Lite
+繁體中文、響應式、深淺色的本機生活紀錄。首次啟動完全空白，無範例資料。
 
-繁體中文的生活儀表板，以 Vite、原生 JavaScript、HTML 和 CSS 建立。睡眠、咖啡、飲水、活動與花費均為**虛構模擬資料**，不是個人健康紀錄，也不使用 API Key。每個日期初始顯示相同的範例；點選卡片即可編輯，資料與深淺色偏好只保存在目前瀏覽器的 localStorage，不會同步到其他裝置。清除瀏覽器資料會移除修改。
+## 開發與驗證
 
-需要 Node.js 22.12 以上的 22.x、24.x，或 26.0 以上版本，以及 npm（建議使用支援的 LTS 版本）。
+Node.js 24：`npm ci`、`npm test`、`npm run build`、`npm audit`。
+`npm run dev` 啟動本機網站。Pages 的部署只由 main 觸發；功能分支不部署。
 
-```bash
-npm ci
-npm run dev
-npm test
-npm run build
-```
+## 紀錄與計算
 
-開發伺服器的位址會顯示在終端機。使用日期箭頭或日期選擇器切換日期；點選卡片可編輯該日資料。
+五類紀錄各自新增、編輯、確認刪除。每筆 UUID 固定，補正更新原 ID。
+睡眠用起床日期，單位分鐘；活動請填不重疊區段，僅已完成計入總覽。
+咖啡分已購買、已兌換、飲用中、已飲用；僅已飲用計入飲用量。
+購買咖啡只在咖啡紀錄記金額，計入支出總覽，請勿再寫一筆相同花費。
+兌換券不允許填咖啡金額；買券時記一筆已付款花費，兌換不再扣款。
+花費僅已付款加總，未知金額保留 null 並顯示未提供筆數，明確輸入 0 才算零元。
+所有空白欄位表示未知。各日期獨立，沒有紀錄即顯示「尚無資料」。
 
-## GitHub Pages
+## 本機資料與備份
 
-目標網址：https://heebtea.github.io/test-ai-code/
+僅使用 localStorage 的 `second-brain-lite-v2`。沒有 API、分析服務或遠端字型。
+CSP 阻擋連線；網站程式由靜態主機下載，紀錄不回傳主機。
+舊 v1 資料可能混入展示值，因此保留原 key、不自動遷移，也不讀為真實紀錄。
+讀取失敗或格式毀損會鎖定寫入，可嘗試匯出原始儲存內容。寫入失敗保留原狀。
+另一分頁更動資料時拒絕覆寫，請重新整理。localStorage 沒有跨分頁交易能力，請避免同時編輯。
 
-Vite 的 `base` 固定為 `/test-ai-code/`，建置輸出為 `dist/`。開發時也需使用終端機顯示的 `/test-ai-code/` 路徑。HTML 中的 JavaScript、CSS 與 favicon 由 Vite 在建置時補上此前綴；日後新增資源請使用 Vite import、CSS `url()` 或 `import.meta.env.BASE_URL`，避免在 JavaScript 中硬寫根目錄 URL。
+JSON 備份格式為 `{ "version": 2, "records": [] }`，不含主題設定。
+匯入驗證版本、欄位、型別、範圍、真實日期、時間、唯一 ID，限制 10 MB / 10000 筆。
+匯入前會顯示新增與衝突數並要求確認；僅新增新 ID，同 ID 保留本機版本，不覆寫或刪除。
+相同備份重複匯入不增加筆數。欲補正衝突請在本機編輯原筆。
+備份應自行保管，勿上傳公開儲存庫。清除瀏覽器、換裝置或換來源不會自動同步。
+真實紀錄、匯出檔及瀏覽器測試狀態不得提交至公開 GitHub。
 
-部署設定 PR 本身不會部署。確認 PR 與 CI 通過後，再由維護者執行：
-
-1. 在儲存庫 **Settings → Pages → Build and deployment → Source** 選擇 **GitHub Actions**。
-2. 確認已準備公開網站後，將部署設定 PR 合併至 `main`。這個動作會觸發部署。
-3. 在 **Actions → Deploy to GitHub Pages** 確認 build 與 deploy 成功，再開啟目標網址。
-4. 如合併時尚未啟用 Pages，啟用後可從該 workflow 的 **Run workflow** 選擇 `main` 手動執行。
-
-`.github/workflows/deploy.yml` 只接受 `main` 的 push 或手動執行，且兩個 job 都限制為 `main`；推送開發分支、建立 PR 不會部署。build 使用 Node.js 24，依序執行 `npm ci`、`npm test`、`npm run build`，成功後僅上傳 `dist/`。build 只有 `contents: read`；deploy 僅有 `pages: write` 與 `id-token: write`，使用官方 Pages Actions 與 `github-pages` environment，不需額外 PAT。原有 `ci.yml` 保持獨立。
-
-公開內容只有程式內的虛構範例，不含真實個人健康、飲食或花費紀錄，也不需要 API Key。訪客自行編輯的資料只留在該瀏覽器的 localStorage，不會進入部署產物或上傳至 GitHub。請勿把真實個人紀錄、瀏覽器匯出資料或 `.env` 檔加入 `src/`、`public/` 或儲存庫。
+瀏覽器驗證：安裝 Chrome 或設定 `CHROME_PATH` 為 Chromium 執行檔，執行
+`npm run build` 然後 `npm run test:browser`。測試自行啟動 preview（127.0.0.1:4173），
+使用隔離瀏覽器 context 與合成測試數值，不讀取個人瀏覽器或真實紀錄。

@@ -1,30 +1,182 @@
-export const STORAGE_KEY = 'second-brain-lite-v1';
-export const THEME_KEY = 'second-brain-theme';
-
-// The same clearly fictional baseline is used for every date until edited.
-export function sampleData() {
-  return {
-    sleep: { total: 7.5, deep: 1.5, rem: 1.8, score: 84 },
-    coffee: { time: '09:30', volume: 250, status: '已飲用' },
-    water: { amount: 1500, goal: 2000 },
-    activity: { steps: 7842, minutes: 42 },
-    spending: { amount: 480, detail: '午餐 $180、咖啡 $120、交通 $180' },
-  };
+export const STORAGE_KEY = "second-brain-lite-v2";
+export const THEME_KEY = "second-brain-theme";
+export const types = ["sleep", "coffee", "water", "activity", "spending"];
+export const empty = () => ({ version: 2, records: [] });
+export function localDate(d = new Date()) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
-export function localDate(date = new Date()) {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+export function validDate(s) {
+  return (
+    typeof s === "string" &&
+    /^\d{4}-\d{2}-\d{2}$/.test(s) &&
+    s >= "1900-01-01" &&
+    s <= "2199-12-31" &&
+    !Number.isNaN(Date.parse(s + "T12:00:00Z")) &&
+    new Date(s + "T12:00:00Z").toISOString().slice(0, 10) === s
+  );
 }
-export function shiftDate(value, days) {
-  const [year, month, day] = value.split('-').map(Number);
-  return localDate(new Date(year, month - 1, day + days));
+export function shiftDate(s, n) {
+  const d = new Date(s + "T12:00:00");
+  d.setDate(d.getDate() + n);
+  return localDate(d);
+}
+export const fields = {
+  sleep: { minutes: 1440, deep: 1440, rem: 1440, score: 100 },
+  coffee: { volume: 100000, amount: 100000000 },
+  water: { volume: 100000 },
+  activity: { steps: 1000000, minutes: 1440 },
+  spending: { amount: 100000000 },
+};
+const statuses = {
+  sleep: ["已完成"],
+  coffee: ["已購買", "已兌換", "飲用中", "已飲用"],
+  water: ["已飲用"],
+  activity: ["未完成", "已完成"],
+  spending: ["未付款", "已付款"],
+};
+export { statuses };
+export function validateRecord(r) {
+  if (!r || typeof r !== "object" || Array.isArray(r))
+    throw Error("紀錄格式錯誤");
+  const allowed = [
+    "id",
+    "date",
+    "type",
+    "status",
+    "note",
+    "time",
+    ...Object.keys(fields[r.type] || {}),
+    ...(r.type === "coffee" ? ["payment"] : []),
+  ];
+  if (
+    Object.keys(r).some((k) => !allowed.includes(k)) ||
+    typeof r.id !== "string" ||
+    !/^[a-zA-Z0-9_-]{1,100}$/.test(r.id) ||
+    !validDate(r.date) ||
+    !types.includes(r.type) ||
+    !statuses[r.type].includes(r.status)
+  )
+    throw Error("紀錄 ID、日期、類別或狀態無效");
+  if (
+    typeof r.note !== "string" ||
+    r.note.length > 500 ||
+    typeof r.time !== "string" ||
+    (r.time !== "" && !/^([01]\d|2[0-3]):[0-5]\d$/.test(r.time))
+  )
+    throw Error("文字或時間格式無效");
+  for (const [k, max] of Object.entries(fields[r.type]))
+    if (
+      r[k] !== null &&
+      (typeof r[k] !== "number" ||
+        !Number.isFinite(r[k]) ||
+        r[k] < 0 ||
+        r[k] > max ||
+        (k !== "amount" && !Number.isInteger(r[k])) ||
+        (k === "amount" &&
+          Math.abs(r[k] * 100 - Math.round(r[k] * 100)) > 0.00001))
+    )
+      throw Error("數值無效：" + k);
+  if (r.type === "coffee" && !["purchase", "voucher"].includes(r.payment))
+    throw Error("付款方式無效");
+  if (r.type === "coffee" && r.payment === "voucher" && r.amount !== null)
+    throw Error("兌換券不在咖啡紀錄重複記帳，金額請留空");
+  if (
+    r.type === "sleep" &&
+    r.minutes !== null &&
+    (r.deep ?? 0) + (r.rem ?? 0) > r.minutes
+  )
+    throw Error("深睡與 REM 合計不能超過總睡眠");
+  if (
+    !Object.keys(fields[r.type]).some((k) => r[k] !== null) &&
+    !r.note.trim() &&
+    !r.time
+  )
+    throw Error("請至少填寫一項數值、時間或說明");
+  return r;
+}
+export function validate(data) {
+  if (
+    !data ||
+    data.version !== 2 ||
+    !Array.isArray(data.records) ||
+    Object.keys(data).some((k) => !["version", "records"].includes(k)) ||
+    data.records.length > 10000
+  )
+    throw Error("僅接受 v2 備份（最多 10000 筆）");
+  const ids = new Set();
+  for (const r of data.records) {
+    validateRecord(r);
+    if (ids.has(r.id)) throw Error("備份含重複 ID");
+    ids.add(r.id);
+  }
+  return data;
+}
+export function parseBackup(s) {
+  if (typeof s !== "string" || s.length > 10000000) throw Error("備份過大");
+  let data;
+  try {
+    data = JSON.parse(s);
+  } catch {
+    throw Error("JSON 格式無效，請選擇完整備份檔");
+  }
+  return validate(data);
+}
+export function upsert(data, r) {
+  validateRecord(r);
+  const old = data.records.find((x) => x.id === r.id);
+  if (old && (old.type !== r.type || old.date !== r.date))
+    throw Error("不可變更既有 ID 的日期或類別");
+  return validate({
+    ...data,
+    records: [...data.records.filter((x) => x.id !== r.id), r],
+  });
+}
+export function remove(data, id) {
+  return { ...data, records: data.records.filter((r) => r.id !== id) };
+}
+export function merge(data, incoming) {
+  validate(incoming);
+  const records = [...data.records];
+  let added = 0,
+    conflicts = 0;
+  for (const r of incoming.records) {
+    const old = records.find((x) => x.id === r.id);
+    if (!old) {
+      records.push(r);
+      added++;
+    } else if (
+      Object.keys(old).length !== Object.keys(r).length ||
+      Object.keys(old).some((k) => old[k] !== r[k])
+    )
+      conflicts++;
+  }
+  return { data: validate({ version: 2, records }), added, conflicts };
 }
 export function loadRecords(storage) {
-  try {
-    const records = JSON.parse(storage.getItem(STORAGE_KEY) || '{}');
-    return records && typeof records === 'object' && !Array.isArray(records) ? records : {};
-  } catch { return {}; }
+  const s = storage.getItem(STORAGE_KEY);
+  return s === null ? empty() : parseBackup(s);
 }
-export function recordFor(records, date) {
-  const defaults = sampleData();
-  return Object.fromEntries(Object.keys(defaults).map(key => [key, { ...defaults[key], ...records[date]?.[key] }]));
+export function persist(storage, data) {
+  const value = JSON.stringify(validate(data));
+  storage.setItem(STORAGE_KEY, value);
+}
+export function rows(data, date, type) {
+  return data.records.filter((r) => r.date === date && r.type === type);
+}
+export function sum(rs, key) {
+  const known = rs.filter((r) => r[key] !== null);
+  return {
+    value: known.length
+      ? known.reduce((s, r) => s + Math.round(r[key] * 100), 0) / 100
+      : null,
+    unknown: rs.length - known.length,
+  };
+}
+export function expenses(data, date) {
+  return data.records.filter(
+    (r) =>
+      r.date === date &&
+      ((r.type === "spending" && r.status === "已付款") ||
+        (r.type === "coffee" && r.payment === "purchase")),
+  );
 }
