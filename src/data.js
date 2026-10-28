@@ -72,6 +72,7 @@ export function validateRecord(r) {
     ...(r.type === "coffee" ? ["payment"] : []),
     ...(r.type === "coffee" ? ["purchaseDate", "startTime", "endTime"] : []),
     ...(r.type === "event" ? ["name"] : []),
+    ...(r.type === "sleep" ? ["core", "awake", "segments"] : []),
     ...(r.type === "water" ? ["capacity", "startTime", "endTime"] : []),
     ...(r.type === "draft" ? ["classification", "payload", "source"] : []),
     ...(r.type === "beverage" ? ["name", "paid", "paymentDate", "startTime", "endTime"] : []),
@@ -130,6 +131,27 @@ export function validateRecord(r) {
       (r.startTime && r.endTime && r.endTime < r.startTime))
   )
     throw Error("咖啡時間無效或結束早於開始");
+  if (r.type === "sleep") {
+    for (const key of ["core", "awake"]) {
+      const v = r[key];
+      if (v !== undefined && v !== null && (!Number.isInteger(v) || v < 0 || v > 1440)) throw Error("睡眠階段分鐘數無效：" + key);
+    }
+    if (r.core !== undefined && r.core !== null && r.minutes !== null && r.deep !== null && r.rem !== null && r.core + r.deep + r.rem > r.minutes) throw Error("核心、深睡與 REM 合計不能超過總睡眠");
+    if (r.segments !== undefined) {
+      if (!Array.isArray(r.segments) || r.segments.length > 500) throw Error("睡眠分段格式無效");
+      const chronological = [];
+      for (const s of r.segments) {
+        if (!s || typeof s !== "object" || Array.isArray(s) || Object.keys(s).length !== 3 || !["start", "end", "stage"].every((k) => Object.hasOwn(s, k)) || !["awake", "rem", "core", "deep"].includes(s.stage)) throw Error("睡眠分段格式無效");
+        const timeFormat = /^\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:Z|[+-](?:[01]\\d|2[0-3]):[0-5]\\d)$/;
+        if (typeof s.start !== "string" || typeof s.end !== "string" || !timeFormat.test(s.start) || !timeFormat.test(s.end)) throw Error("睡眠分段須使用含時區的 ISO 時間");
+        const a = Date.parse(s.start), b = Date.parse(s.end);
+        if (!Number.isFinite(a) || !Number.isFinite(b) || b <= a || b - a > 86400000) throw Error("睡眠分段時間無效");
+        chronological.push({ a, b });
+      }
+      chronological.sort((a, b) => a.a - b.a);
+      if (chronological.some((s, i) => i > 0 && s.a < chronological[i - 1].b)) throw Error("睡眠分段不能互相重疊");
+    }
+  }
   if (r.type === "water") {
     if (r.capacity !== undefined && r.capacity !== null && (!Number.isInteger(r.capacity) || r.capacity < 0 || r.capacity > 100000)) throw Error("裝水容量無效");
     if ((r.startTime !== undefined && !timeValid(r.startTime)) || (r.endTime !== undefined && !timeValid(r.endTime)) || (r.startTime && r.endTime && r.endTime < r.startTime)) throw Error("飲水時間無效");
