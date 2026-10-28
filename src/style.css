@@ -753,3 +753,69 @@ dialog p {
 .template-label {
   color: var(--template-ink, #fff);
 }
+
+/* Apple-inspired sleep detail. These are drawn from stored data, never guessed. */
+#sleep-dialog {
+  width: min(760px, calc(100% - 16px));
+  padding: 24px;
+  background: #15171b;
+  color: #f4f5f7;
+  border: 1px solid #454751;
+  border-radius: 26px;
+  color-scheme: dark;
+}
+#sleep-dialog h2, #sleep-dialog h3 { color: #f4f5f7; }
+#sleep-dialog h3 { margin: 0 0 12px; font-size: 16px; }
+.sleep-dialog-header { display: flex; justify-content: space-between; align-items: center; gap: 15px; margin-bottom: 17px; }
+.sleep-dialog-header h2 { font-size: 22px; margin: 0; }
+#sleep-dialog .sleep-dialog-close { min-width: 44px; background: #303138; border-radius: 50%; color: #fff; }
+.sleep-tabs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); background: #2d2e35; border-radius: 13px; padding: 4px; gap: 3px; margin: 12px 0 16px; }
+#sleep-dialog .sleep-tab { min-width: 0; font-size: 14px; background: transparent; border: 0; color: #b7b8c1; padding: 10px 2px; min-height: 40px; }
+#sleep-dialog .sleep-tab.is-active { color: #fff; background: #585960; box-shadow: 0 1px 4px #0004; }
+.sleep-date-select { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 13px; color: #bbc0c8; margin: 14px 0 20px; }
+.sleep-date-select input { color: #fff; background: #2c2f35; border: 1px solid #535660; padding: 8px; min-height: 42px; border-radius: 9px; max-width: 180px; }
+.sleep-overview { display: flex; flex-direction: column; align-items: flex-start; gap: 5px; border-bottom: 1px solid #303540; padding: 3px 0 19px; margin-bottom: 21px; }
+.sleep-overview span, .sleep-trend-stat span { color: #a5aab4; font-size: 13px; }
+.sleep-overview strong { font-size: clamp(28px, 6vw, 42px); font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: -.03em; }
+.sleep-overview small, .sleep-trend-stat small { color: #aab0b8; font-size: 13px; }
+.sleep-stage-panel, .sleep-chart-panel { margin: 20px 0; }
+.sleep-stage-band { width: 100%; height: 17px; background: #484d57; border-radius: 9px; display: flex; gap: 2px; overflow: hidden; margin-bottom: 22px; }
+.sleep-band-deep, .sleep-rect-deep { background: #5142c0; fill: #5142c0; }
+.sleep-band-core, .sleep-rect-core { background: #3986ef; fill: #3986ef; }
+.sleep-band-rem, .sleep-rect-rem { background: #60c6ec; fill: #60c6ec; }
+.sleep-band-unknown { background: #626771; }
+.sleep-stage-row { display: flex; gap: 11px; align-items: center; border-bottom: 1px solid #2d323a; padding: 13px 0; font-size: 14px; }
+.sleep-stage-row span { flex: 1; color: #d5d9e0; }
+.sleep-stage-row strong { font-variant-numeric: tabular-nums; font-size: 14px; white-space: nowrap; }
+.sleep-dot { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; }
+.sleep-dot-awake { background: #f47b5d; }
+.sleep-dot-rem { background: #60c6ec; }
+.sleep-dot-core { background: #3986ef; }
+.sleep-dot-deep { background: #5142c0; }
+.sleep-caption { font-size: 12px !important; line-height: 1.6; color: #a5acb8; margin: 14px 0; }
+.sleep-empty { padding: 24px 14px; border: 1px dashed #555964; color: #a8abb4; border-radius: 12px; font-size: 14px; }
+.sleep-chart-panel svg { display: block; width: 100%; max-height: 280px; }
+.sleep-axis-label { fill: #bdc1ca; font-size: 13px; }
+.sleep-grid-line { stroke: #454954; stroke-width: 1; }
+.sleep-rect-awake { fill: #f47b5d; }
+.sleep-trend-stat { display: flex; flex-direction: column; gap: 6px; padding: 8px 0 20px; border-bottom: 1px solid #373b44; }
+.sleep-trend-stat strong { font-size: 30px; font-variant-numeric: tabular-nums; }
+.sleep-trend-scroll { overflow-x: auto; width: 100%; padding: 12px 0; }
+.sleep-trend-bars { display: flex; align-items: stretch; gap: 6px; height: 210px; min-width: 0; }
+.sleep-trend-column { flex: 1 1 0; display: flex; flex-direction: column; align-items: center; min-width: 18px; }
+.sleep-trend-rail { flex: 1; width: 100%; display: flex; align-items: end; border-bottom: 1px solid #545968; background-image: repeating-linear-gradient(to top, transparent, transparent 47px, #3b3e47 48px); }
+.sleep-trend-bar { background: linear-gradient(#6d86eb, #3a76d5); width: 80%; margin: 0 auto; border-radius: 7px 7px 1px 1px; }
+.sleep-trend-missing { height: 0 !important; }
+.sleep-trend-column small { color: #a6aab4; font-size: 10px; text-align: center; margin-top: 9px; white-space: nowrap; }
+#form-fields .sleep-segments-input { grid-column: 1/-1; }
+#form-fields .sleep-segments-input textarea { width: 100%; padding: 8px; background: var(--page); color: var(--text); border: 1px solid var(--line); border-radius: 7px; font: 12px/1.5 ui-monospace, SFMono-Regular, monospace; min-height: 110px; }
+.sleep .card-toggle { cursor: pointer; }
+@media (max-width: 560px) {
+  #sleep-dialog { padding: 16px; max-height: 93dvh; }
+  .sleep-stage-row { font-size: 13px; }
+  .sleep-stage-row strong { font-size: 13px; }
+  .sleep .card-head { flex-wrap: wrap; }
+  .sleep .card-head .sleep-view { font-size: 11px; padding: 5px 7px; }
+  .sleep-trend-bars { gap: 3px; }
+  .sleep-trend-column small { font-size: 9px; }
+}

@@ -1,4 +1,5 @@
 import "./style.css";
+import { openSleepDetail } from "./sleep-detail.js";
 import { timeline, drawTemplateJournal, journalSections } from "./journal.js";
 import {
   baseTemplate,
@@ -99,6 +100,9 @@ function detail(r) {
       ? `主題：${r.theme || "尚無資料"} · 亮點：${r.highlight || "尚無資料"} · 身體：${r.wellbeing || "尚無資料"} · 心情：${r.mood || "尚無資料"} · 待辦：${r.todo || "尚無資料"}`
       : "",
     r.source,
+    r.type === "sleep" && (r.core != null || r.awake != null || r.segments?.length)
+      ? `核心：${r.core ?? "未提供"} 分 · 清醒：${r.awake ?? "未提供"} 分 · 實際分段：${r.segments?.length || 0} 筆`
+      : "",
     r.type === "water" && (r.capacity !== undefined || r.startTime || r.endTime)
       ? `裝水容量：${r.capacity ?? "未知"} mL · 開始：${r.startTime || "未知"} · 結束：${r.endTime || "未知"}`
       : "",
@@ -161,7 +165,7 @@ function render() {
         summary = `${rs.some((r) => r.status === "吃完") ? rs.filter((r) => r.status === "吃完").length + " 筆吃完" : "完整食用尚無資料"} · ${rs.filter((r) => r.status === "部分").length} 筆部分 · ${rs.filter((r) => r.status === "未確認").length} 筆未確認`;
       if (type === "spending")
         summary = total(expenses(data, date), "amount", "NT$");
-      return `<section class="card ${type}"><div class="card-head"><h2>${names[type]}</h2><button data-add="${type}" ${blocked ? "disabled" : ""}>新增</button></div><button class="card-toggle" aria-expanded="false" aria-label="展開${names[type]}明細"><span class="metric">${summary}</span><span class="card-cue">查看紀錄 ↗</span></button><details class="record-details"><summary>紀錄明細（${rs.length}）</summary>${type === "spending" ? "<p>依付款日計算餐點、購買日計算咖啡，加上已付款花費。餐點與咖啡請勿再記一筆花費；券只在購券時記帳。付款日期未知的餐點不推定為今日支出。</p>" : ""}${
+      return `<section class="card ${type}"><div class="card-head"><h2>${names[type]}</h2>${type === "sleep" ? '<button type="button" class="sleep-view" data-sleep-view>睡眠圖</button>' : ""}<button data-add="${type}" ${blocked ? "disabled" : ""}>新增</button></div><button class="card-toggle" aria-expanded="false" aria-label="展開${names[type]}明細"><span class="metric">${summary}</span><span class="card-cue">查看紀錄 ↗</span></button><details class="record-details"><summary>紀錄明細（${rs.length}）</summary>${type === "spending" ? "<p>依付款日計算餐點、購買日計算咖啡，加上已付款花費。餐點與咖啡請勿再記一筆花費；券只在購券時記帳。付款日期未知的餐點不推定為今日支出。</p>" : ""}${
         type === "activity"
           ? `<p>已完成時間：${total(
               rs.filter((r) => r.status === "已完成"),
@@ -180,7 +184,7 @@ function render() {
           `<li><button class="timeline-event" data-event="${entry.record.id}"><time>${esc(entry.time)}</time><span><b>${esc(entry.label)}</b><small>${esc(entry.record.name || entry.record.status)}</small></span><img data-photo="${entry.record.id}" alt="事件照片" hidden></button></li>`,
       )
       .join("") || "<li>尚無有時間的紀錄</li>"
-  }</ul><button data-add="event" ${blocked ? "disabled" : ""}>＋ 新增重要事件</button></details>${templateView()}<section class="journal-banner"><div><small>THE DAILY EDIT</small><h2>把今天，收進小誌裡。</h2><p>用已記錄的片段，留下一張屬於今天的直式小誌。</p></div><button id="journal">產生今日小誌</button></section><p class="footer">睡眠以起床日期記錄；活動請記錄不重疊的區段。空白數值代表未知，只有明確輸入 0 才是零。</p></main></div><dialog id="editor" aria-labelledby="dialog-title"></dialog><dialog id="confirm" aria-labelledby="confirm-title"></dialog><dialog id="event-detail"></dialog><dialog id="journal-dialog"></dialog><dialog id="template-editor"></dialog>`;
+  }</ul><button data-add="event" ${blocked ? "disabled" : ""}>＋ 新增重要事件</button></details>${templateView()}<section class="journal-banner"><div><small>THE DAILY EDIT</small><h2>把今天，收進小誌裡。</h2><p>用已記錄的片段，留下一張屬於今天的直式小誌。</p></div><button id="journal">產生今日小誌</button></section><p class="footer">睡眠以起床日期記錄；活動請記錄不重疊的區段。空白數值代表未知，只有明確輸入 0 才是零。</p></main></div><dialog id="editor" aria-labelledby="dialog-title"></dialog><dialog id="confirm" aria-labelledby="confirm-title"></dialog><dialog id="event-detail"></dialog><dialog id="journal-dialog"></dialog><dialog id="template-editor"></dialog><dialog id="sleep-dialog" aria-label="睡眠詳情"></dialog>`;
   applyTemplateStyles(
     document.querySelector(".template-sheet"),
     selectedTemplate,
@@ -191,9 +195,16 @@ function render() {
         card.querySelector(".card-toggle").click();
     }),
   );
+  document.querySelectorAll("[data-sleep-view]").forEach((button) => {
+    button.onclick = () => openSleepDetail(document.querySelector("#sleep-dialog"), data, date);
+  });
   document.querySelectorAll(".card-toggle").forEach(
     (button) =>
       (button.onclick = () => {
+        if (button.closest(".sleep")) {
+          openSleepDetail(document.querySelector("#sleep-dialog"), data, date);
+          return;
+        }
         const d = button.parentElement.querySelector("details");
         d.open = !d.open;
         button.setAttribute("aria-expanded", String(d.open));
@@ -663,6 +674,7 @@ function edit(type, record) {
       : {}),
     ...(type === "water" ? { capacity: null, startTime: "", endTime: "" } : {}),
     ...(type === "event" ? { name: "" } : {}),
+    ...(type === "sleep" ? { core: null, awake: null, segments: [] } : {}),
     ...(type === "beverage" ? { name:"", paid:null, paymentDate:null, startTime:"", endTime:"" } : {}),
     ...(type === "journal"
       ? { theme: "", highlight: "", wellbeing: "", mood: "", todo: "" }
@@ -680,7 +692,7 @@ function edit(type, record) {
     ...(type === "sunlight" ? { source: "" } : {}),
   };
   const d = document.querySelector("#editor");
-  d.innerHTML = `<form id="edit-form"><h2 id="dialog-title">${record ? "編輯" : "新增"}${names[type]}</h2><p>${r.date} · 空白代表未知。餐點紀錄不代表已食用；只有「吃完」才算完整食用。${type === "coffee" ? "兌換券請勿填金額；飲用中不計入已飲用量。購買日與飲用紀錄日分開計算。" : ""}</p><div id="form-fields"><label>${type === "meal" ? "預定／實際用餐日期" : "紀錄日期"}<input name="date" type="date" value="${r.date}" required></label>${type === "journal" ? ["theme", "highlight", "wellbeing", "mood", "todo"].map((key, i) => `<label>${["每日主題", "今日亮點", "身體狀況", "心情", "待辦事項"][i]}<textarea name="${key}" maxlength="500">${esc(r[key])}</textarea></label>`).join("") : ""}${type === "beverage" ? `<label>飲品名稱<input name="name" maxlength="100" required value="${esc(r.name)}"></label><label>付款狀態<select name="paid"><option value="unknown" ${r.paid === null ? "selected" : ""}>未確認</option><option value="yes" ${r.paid === true ? "selected" : ""}>已付款</option><option value="no" ${r.paid === false ? "selected" : ""}>未付款</option></select></label><label>付款日期<input type="date" name="paymentDate" value="${r.paymentDate ?? ""}"></label><label>開始飲用<input name="startTime" type="time" value="${r.startTime}"></label><label>結束飲用<input name="endTime" type="time" value="${r.endTime}"></label>` : ""}${type === "event" ? `<label>事件名稱<input name="name" maxlength="100" required value="${esc(r.name)}"></label>` : ""}${type === "coffee" ? `<label>開始飲用<input name="startTime" type="time" value="${r.startTime ?? ""}"></label><label>結束飲用<input name="endTime" type="time" value="${r.endTime ?? ""}"></label>` : ""}${type === "water" ? `<label>裝水容量（mL，不代表已喝完）<input name="capacity" type="number" min="0" max="100000" step="1" value="${r.capacity ?? ""}"></label><label>開始飲水<input name="startTime" type="time" value="${r.startTime ?? ""}"></label><label>結束飲水<input name="endTime" type="time" value="${r.endTime ?? ""}"></label>` : ""}${type === "meal" ? `<label>訂購日期（未知留空）<input name="orderDate" type="date" value="${r.orderDate ?? ""}"></label><label>餐點名稱<input name="name" maxlength="100" required value="${esc(r.name)}"></label><label>付款狀態<select name="paid"><option value="unknown" ${r.paid === null ? "selected" : ""}>未確認</option><option value="yes" ${r.paid === true ? "selected" : ""}>已付款</option><option value="no" ${r.paid === false ? "selected" : ""}>未付款</option></select></label><label>實際付款日期<input type="date" name="paymentDate" value="${r.paymentDate ?? ""}"></label><label>開始用餐<input type="time" name="startTime" value="${r.startTime}"></label><label>結束用餐<input type="time" name="endTime" value="${r.endTime}"></label>` : ""}${type === "sunlight" ? `<label>來源（如 Apple Watch）<input name="source" maxlength="100" value="${esc(r.source)}"></label>` : ""}${type === "coffee" ? `<label>實際購買日期（未知留空）<input name="purchaseDate" type="date" value="${r.purchaseDate === undefined ? r.date : (r.purchaseDate ?? "")}"></label>` : ""}${Object.entries(
+  d.innerHTML = `<form id="edit-form"><h2 id="dialog-title">${record ? "編輯" : "新增"}${names[type]}</h2><p>${r.date} · 空白代表未知。餐點紀錄不代表已食用；只有「吃完」才算完整食用。${type === "coffee" ? "兌換券請勿填金額；飲用中不計入已飲用量。購買日與飲用紀錄日分開計算。" : ""}</p><div id="form-fields"><label>${type === "meal" ? "預定／實際用餐日期" : "紀錄日期"}<input name="date" type="date" value="${r.date}" required></label>${type === "journal" ? ["theme", "highlight", "wellbeing", "mood", "todo"].map((key, i) => `<label>${["每日主題", "今日亮點", "身體狀況", "心情", "待辦事項"][i]}<textarea name="${key}" maxlength="500">${esc(r[key])}</textarea></label>`).join("") : ""}${type === "beverage" ? `<label>飲品名稱<input name="name" maxlength="100" required value="${esc(r.name)}"></label><label>付款狀態<select name="paid"><option value="unknown" ${r.paid === null ? "selected" : ""}>未確認</option><option value="yes" ${r.paid === true ? "selected" : ""}>已付款</option><option value="no" ${r.paid === false ? "selected" : ""}>未付款</option></select></label><label>付款日期<input type="date" name="paymentDate" value="${r.paymentDate ?? ""}"></label><label>開始飲用<input name="startTime" type="time" value="${r.startTime}"></label><label>結束飲用<input name="endTime" type="time" value="${r.endTime}"></label>` : ""}${type === "sleep" ? `<label>核心睡眠（分鐘；未知留空）<input name="core" type="number" min="0" max="1440" value="${r.core ?? ""}"></label><label>清醒（分鐘；不含於總睡眠）<input name="awake" type="number" min="0" max="1440" value="${r.awake ?? ""}"></label><label class="sleep-segments-input">逐時分段（進階；每行：含時區開始,結束,awake／rem／core／deep）<textarea name="sleepSegments" rows="4" placeholder="2026-10-28T01:00:00+08:00,2026-10-28T01:10:00+08:00,awake">${esc((r.segments || []).map((s) => [s.start,s.end,s.stage].join(",")).join("\n"))}</textarea></label>` : ""}${type === "event" ? `<label>事件名稱<input name="name" maxlength="100" required value="${esc(r.name)}"></label>` : ""}${type === "coffee" ? `<label>開始飲用<input name="startTime" type="time" value="${r.startTime ?? ""}"></label><label>結束飲用<input name="endTime" type="time" value="${r.endTime ?? ""}"></label>` : ""}${type === "water" ? `<label>裝水容量（mL，不代表已喝完）<input name="capacity" type="number" min="0" max="100000" step="1" value="${r.capacity ?? ""}"></label><label>開始飲水<input name="startTime" type="time" value="${r.startTime ?? ""}"></label><label>結束飲水<input name="endTime" type="time" value="${r.endTime ?? ""}"></label>` : ""}${type === "meal" ? `<label>訂購日期（未知留空）<input name="orderDate" type="date" value="${r.orderDate ?? ""}"></label><label>餐點名稱<input name="name" maxlength="100" required value="${esc(r.name)}"></label><label>付款狀態<select name="paid"><option value="unknown" ${r.paid === null ? "selected" : ""}>未確認</option><option value="yes" ${r.paid === true ? "selected" : ""}>已付款</option><option value="no" ${r.paid === false ? "selected" : ""}>未付款</option></select></label><label>實際付款日期<input type="date" name="paymentDate" value="${r.paymentDate ?? ""}"></label><label>開始用餐<input type="time" name="startTime" value="${r.startTime}"></label><label>結束用餐<input type="time" name="endTime" value="${r.endTime}"></label>` : ""}${type === "sunlight" ? `<label>來源（如 Apple Watch）<input name="source" maxlength="100" value="${esc(r.source)}"></label>` : ""}${type === "coffee" ? `<label>實際購買日期（未知留空）<input name="purchaseDate" type="date" value="${r.purchaseDate === undefined ? r.date : (r.purchaseDate ?? "")}"></label>` : ""}${Object.entries(
     fields[type],
   )
     .map(
@@ -697,6 +709,15 @@ function edit(type, record) {
       const values = Object.fromEntries(new FormData(e.target));
       for (const k of Object.keys(fields[type]))
         values[k] = values[k].trim() === "" ? null : Number(values[k]);
+      if (type === "sleep") {
+        for (const k of ["core", "awake"]) values[k] = values[k].trim() === "" ? null : Number(values[k]);
+        values.segments = values.sleepSegments.trim() ? values.sleepSegments.trim().split(/\r?\n/).map((line) => {
+          const parts = line.trim().split(",").map((part) => part.trim());
+          if (parts.length !== 3) throw Error("分段每行應包含開始、結束、階段三欄");
+          return { start: parts[0], end: parts[1], stage: parts[2] };
+        }) : [];
+        delete values.sleepSegments;
+      }
       if (type === "water") values.capacity = values.capacity.trim() === "" ? null : Number(values.capacity);
       if (type === "meal" || type === "beverage") {
         values.paid =
