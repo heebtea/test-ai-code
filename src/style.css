@@ -203,6 +203,13 @@ summary {
 .water {
   --accent: #428698;
 }
+.beverage {
+  --accent: #6d81b3;
+}
+.hydration {
+  --accent: #3192aa;
+  grid-column: span 2;
+}
 .activity {
   --accent: #58836b;
 }

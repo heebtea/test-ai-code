@@ -1,6 +1,6 @@
 import { it, expect } from "vitest";
 import { timeline, journalSections } from "../src/journal.js";
-import { parseBackup, upsert, empty, merge } from "../src/data.js";
+import { parseBackup, upsert, empty, merge, liquidIntake } from "../src/data.js";
 const day = "2026-01-02";
 const common = (id, type) => ({
   id,
@@ -73,4 +73,30 @@ it("legacy OCR drafts remain readable but are excluded from daily statistics", (
   expect(parseBackup(JSON.stringify(backup))).toEqual(backup);
   expect(merge(empty(), backup).data.records).toEqual([draft]);
   expect(journalSections(backup, day)).toEqual([]);
+});
+
+it("daily liquid total combines confirmed water coffee beverages without guessing pending volumes", () => {
+  const records = [
+    { id: "water-done", type: "water", date: day, status: "已飲用", note: "", time: "", volume: 100 },
+    { id: "water-pending", type: "water", date: day, status: "飲用中", note: "", time: "", volume: null, capacity: 800, startTime: "19:33", endTime: "" },
+    { id: "coffee-done", type: "coffee", date: day, status: "已飲用", note: "", time: "", volume: 480, amount: null, payment: "voucher", startTime: "08:08", endTime: "09:20" },
+    { id: "coffee-pending", type: "coffee", date: day, status: "飲用中", note: "", time: "", volume: 250, amount: null, payment: "voucher" },
+    { id: "tea-done", type: "beverage", date: day, status: "已飲用", note: "", time: "", name: "無糖茶", volume: 700, amount: null, paid: null, paymentDate: null, startTime: "11:00", endTime: "12:00" },
+    { id: "cola-done", type: "beverage", date: day, status: "已飲用", note: "", time: "", name: "可樂", volume: 700, amount: null, paid: null, paymentDate: null, startTime: "18:00", endTime: "18:35" },
+    { id: "tea-pending", type: "beverage", date: day, status: "飲用中", note: "", time: "", name: "未喝完茶", volume: 500, amount: null, paid: null, paymentDate: null, startTime: "", endTime: "" },
+  ];
+  const data = parseBackup(JSON.stringify({ version: 6, records }));
+  const tally = liquidIntake(data, day);
+  expect(tally.value).toBe(1980);
+  expect(tally.pending).toBe(3);
+  expect(tally.breakdown.water.value).toBe(100);
+  expect(tally.breakdown.coffee.value).toBe(480);
+  expect(tally.breakdown.beverage.value).toBe(1400);
+  expect(journalSections(data, day).find((x) => x.title === "今日已飲用總量").value).toBe("1,980 mL");
+  expect(journalSections(data, day).find((x) => x.title === "飲水").value).toBe("100 mL");
+  expect(() => parseBackup(JSON.stringify({ version: 6, records: [{ ...records[1], volume: 800 }] }))).toThrow();
+  const completed = { ...records[1], status: "已飲用", volume: 800, endTime: "20:30" };
+  const updated = { version: 6, records: records.map((r) => r.id === completed.id ? completed : r) };
+  expect(liquidIntake(updated, day).value).toBe(2780);
+  expect(liquidIntake({ version: 6, records }, "2026-01-03").value).toBeNull();
 });

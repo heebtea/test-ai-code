@@ -46,7 +46,7 @@ process.on("exit", () => server.kill());
     await page.goto("http://127.0.0.1:4173/test-ai-code/");
     assert.equal(
       await page.locator(".metric").filter({ hasText: "尚無資料" }).count(),
-      7,
+      9,
     );
     assert.equal(
       await page.evaluate(
@@ -149,6 +149,42 @@ process.on("exit", () => server.kill());
     passed++;
     await context.close();
   }
+  // Liquid-intake regression: total includes confirmed drinks, not pending water.
+  const fluidsContext = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  const fluidsPage = await fluidsContext.newPage();
+  await fluidsPage.goto("http://127.0.0.1:4173/test-ai-code/");
+  const fluidDate = await fluidsPage.locator("#date").inputValue();
+  const common = (id, type, status, volume) => ({
+    id, type, status, volume, date: fluidDate, note: "", time: "",
+  });
+  const fluidRecords = [
+    { ...common("coffee-a", "coffee", "已飲用", 480), amount: null, payment: "voucher" },
+    { ...common("tea-a", "beverage", "已飲用", 700), name: "合成麥茶", amount: null, paid: null, paymentDate: null, startTime: "", endTime: "" },
+    { ...common("cola-a", "beverage", "已飲用", 700), name: "合成可樂", amount: null, paid: null, paymentDate: null, startTime: "", endTime: "" },
+    { ...common("water-a", "water", "飲用中", null), capacity: 800, startTime: "19:33", endTime: "" },
+  ];
+  await fluidsPage.locator("#import").setInputFiles({
+    name: "synthetic-fluids.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify({ version: 6, records: fluidRecords })),
+  });
+  await fluidsPage.locator("#yes").click();
+  assert.match(await fluidsPage.locator(".hydration .metric").innerText(), /1,880/);
+  assert.match(await fluidsPage.locator(".beverage .metric").innerText(), /1,400/);
+  assert.equal(await fluidsPage.locator(".water .metric").innerText(), "尚無資料");
+  await fluidsPage.locator(".water details").evaluate((e) => (e.open = true));
+  await fluidsPage.locator(".water [data-edit]").click();
+  await fluidsPage.locator("[name=status]").selectOption("已飲用");
+  await fluidsPage.locator("[name=volume]").fill("800");
+  await fluidsPage.locator("[name=endTime]").fill("20:30");
+  await fluidsPage.locator("#edit-form .save").click();
+  assert.match(await fluidsPage.locator(".hydration .metric").innerText(), /2,680/);
+  assert.match(await fluidsPage.locator(".water .metric").innerText(), /800/);
+  const fluidBackup = await fluidsPage.evaluate(() => JSON.parse(localStorage.getItem("second-brain-lite-v2")));
+  assert.equal(fluidBackup.version, 6);
+  assert.equal(fluidBackup.records.length, 4);
+  console.log("PASS synthetic liquid intake: pending excluded, confirmed counted once, editable water");
+  await fluidsContext.close();
   const c = await browser.newContext();
   await c.addInitScript(() => {
     Storage.prototype.getItem = () => {

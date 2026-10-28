@@ -71,6 +71,7 @@ it("all types can be corrected and deleted", () => {
       time: "",
       ...Object.fromEntries(Object.keys(m.fields[type]).map((k) => [k, null])),
       ...(type === "coffee" ? { payment: "purchase" } : {}),
+      ...(type === "beverage" ? { name: "合成飲品", paid: null, paymentDate: null, startTime: "", endTime: "" } : {}),
       ...(type === "meal"
         ? {
             name: "測試餐點",
@@ -141,7 +142,7 @@ beforeEach(async () => {
   await import("../src/main.js");
 });
 it("UI empty, add, edit same ID, date isolation and delete confirmation", () => {
-  expect(document.querySelectorAll(".metric")).toHaveLength(7);
+  expect(document.querySelectorAll(".metric")).toHaveLength(9);
   expect(
     [...document.querySelectorAll(".metric")].every(
       (e) => e.textContent === "尚無資料",

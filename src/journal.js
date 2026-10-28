@@ -1,4 +1,4 @@
-import { rows, sum, expenses } from "./data.js";
+import { rows, sum, expenses, liquidIntake } from "./data.js";
 import { sectionNames } from "./templates.js";
 export const names = {
   sleep: "睡眠",
@@ -21,6 +21,10 @@ export function timeline(data, date) {
     if (r.type === "meal") {
       add(r.startTime, "開始用餐");
       add(r.endTime, r.status === "吃完" ? "完食" : "結束用餐");
+    } else if (r.type === "water" && (r.startTime || r.endTime)) {
+      add(r.startTime, "開始飲水");
+      add(r.endTime, r.status === "已飲用" ? "喝完水" : "結束飲水");
+      if (r.time && r.time !== r.startTime && r.time !== r.endTime) add(r.time, "飲水紀錄");
     } else if (r.type === "coffee" || r.type === "beverage") {
       if (r.startTime || r.endTime) {
         add(r.startTime, r.type === "coffee" ? "開始喝咖啡" : "開始飲用");
@@ -55,8 +59,11 @@ export function journalSections(data, date) {
     "volume",
     "mL",
   );
-  add("飲水", rows(data, date, "water"), "volume", "mL");
+  add("飲水", rows(data, date, "water").filter((r) => r.status === "已飲用"), "volume", "mL");
   add("其他飲品已飲用", rows(data,date,"beverage").filter(r=>r.status === "已飲用"), "volume", "mL");
+  const liquids = liquidIntake(data, date);
+  if (liquids.value !== null)
+    result.push({ title: "今日已飲用總量", value: `${liquids.value.toLocaleString("zh-TW")} mL${liquids.unknown ? `（${liquids.unknown} 筆未提供）` : ""}` });
   const meals = rows(data, date, "meal");
   if (meals.length)
     result.push({
@@ -177,7 +184,7 @@ export function drawTemplateJournal(canvas, data, date, template) {
   const groups = {
     overview: ["每日主題"],
     health: ["睡眠", "活動", "活動時間", "日照"],
-    food: ["餐點", "咖啡已飲用", "飲水", "其他飲品已飲用", "已付款花費"],
+    food: ["餐點", "咖啡已飲用", "飲水", "其他飲品已飲用", "今日已飲用總量", "已付款花費"],
     highlight: ["今日亮點"],
     body: ["身體狀況", "心情"],
     todo: ["待辦事項"],
