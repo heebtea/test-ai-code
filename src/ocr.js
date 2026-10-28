@@ -67,7 +67,97 @@ export function extractCandidates(raw) {
         line,
       );
   }
-  return { date, candidates: result.slice(0, 60) };
+  const dateMatches = [
+    ...dateText.matchAll(
+      /\b(20\d{2})\s*[.\-/年]\s*(\d{1,2})\s*[.\-/月]\s*(\d{1,2})\b/g,
+    ),
+  ]
+    .map((m) => [m[1], m[2].padStart(2, "0"), m[3].padStart(2, "0")].join("-"))
+    .filter(validDate);
+  const secondMatch = clean(raw.date2 || "").match(
+    /\b(20\d{2})\s*[.\-/年]\s*(\d{1,2})\s*[.\-/月]\s*(\d{1,2})\b/,
+  );
+  const secondDate = secondMatch
+    ? [
+        secondMatch[1],
+        secondMatch[2].padStart(2, "0"),
+        secondMatch[3].padStart(2, "0"),
+      ].join("-")
+    : "";
+  const headerDates = [
+    ...clean((raw.whole || "").slice(0, 300)).matchAll(
+      /\b(20\d{2})\s*[.\-/年]\s*(\d{1,2})\s*[.\-/月]\s*(\d{1,2})\b/g,
+    ),
+  ]
+    .map((m) => [m[1], m[2].padStart(2, "0"), m[3].padStart(2, "0")].join("-"))
+    .filter(validDate);
+  const dateConflict =
+    new Set([...dateMatches, ...headerDates]).size > 1 ||
+    Boolean(date && secondDate && date !== secondDate);
+  const compact = clean(raw.whole || "").replace(/\s/g, "");
+  const confidences = raw.confidences || {};
+  // A reliable duration must not silently carry a low-confidence sleep score.
+  const sleepRow = result.find((item) => item.type === "sleep");
+  if (
+    sleepRow &&
+    sleepRow.minutes !== null &&
+    sleepRow.score !== null &&
+    (confidences.sleepblock || 0) < 65
+  ) {
+    result.push({
+      ...sleepRow,
+      minutes: null,
+      source: clean(raw.sleepblock || ""),
+      reason: "睡眠分數待確認",
+    });
+    sleepRow.score = null;
+  }
+  for (const c of result) {
+    let evidence = false,
+      ocrScore = 0;
+    if (c.type === "sleep" && c.minutes !== null) {
+      evidence = /睡\s*眠/.test(
+        (raw.sleepblock || "") + " " + (raw.whole || ""),
+      );
+      ocrScore = confidences.sleep || 0;
+      if (c.score !== null)
+        ocrScore = Math.min(ocrScore, confidences.sleepblock || 0);
+    }
+    if (c.type === "activity" && c.steps !== null) {
+      const n = String(c.steps);
+      const digits = compact.replace(/,/g, "");
+      evidence = new RegExp(
+        "(?:步|數).{0,15}" + n + "|" + n + ".{0,15}(?:步|超過)",
+      ).test(digits);
+      ocrScore = confidences.steps || 0;
+    }
+    if (c.type === "sunlight" && c.minutes !== null) {
+      evidence = new RegExp(
+        "日照.{0,15}" + c.minutes + "|" + c.minutes + ".{0,15}日照",
+      ).test(compact);
+      ocrScore = confidences.sunlight || 0;
+    }
+    c.recommended = Boolean(
+      date &&
+      !dateConflict &&
+      secondDate === date &&
+      (confidences.date || 0) >= 50 &&
+      (confidences.date2 || 0) >= 50 &&
+      ocrScore >= (c.type === "activity" || c.type === "sunlight" ? 40 : 65) &&
+      evidence,
+    );
+    c.reason =
+      c.reason ||
+      (dateConflict
+        ? "日期有矛盾"
+        : !date
+          ? "日期未確認"
+          : c.recommended
+            ? "數值及日期有辨識依據"
+            : "辨識依據不足或狀態待確認");
+    if (c.recommended) c.status = c.type === "sunlight" ? "已記錄" : "已完成";
+  }
+  return { date, dateConflict, candidates: result.slice(0, 60) };
 }
 function crop(bitmap, rect, scale = 3) {
   const c = document.createElement("canvas");
@@ -111,7 +201,8 @@ export async function recognizeCard(file, progress = () => {}) {
       logger: (m) => progress(m.status, m.progress),
     });
     const wholeCanvas = crop(bitmap, [0, 0, 1, 1], 1);
-    let whole = (await worker.recognize(wholeCanvas)).data.text;
+    const first = (await worker.recognize(wholeCanvas)).data;
+    let whole = first.text;
     await worker.setParameters({ tessedit_pageseg_mode: "6" });
     const specs = {
       date: [0.017, 0.043, 0.258, 0.048],
@@ -120,12 +211,19 @@ export async function recognizeCard(file, progress = () => {}) {
       sunlight: [0.54, 0.148, 0.18, 0.045],
       sleepblock: [0.01, 0.117, 0.31, 0.105],
     };
-    const raw = { whole };
+    const raw = { whole, confidences: { whole: first.confidence } };
     let index = 0;
     for (const [name, rect] of Object.entries(specs)) {
       progress("辨識區塊", index++ / 5);
-      raw[name] = (await worker.recognize(crop(bitmap, rect, 4))).data.text;
+      const result = (await worker.recognize(crop(bitmap, rect, 4))).data;
+      raw[name] = result.text;
+      raw.confidences[name] = result.confidence;
     }
+    await worker.setParameters({ tessedit_pageseg_mode: "7" });
+    const secondDate = (await worker.recognize(crop(bitmap, specs.date, 4)))
+      .data;
+    raw.date2 = secondDate.text;
+    raw.confidences.date2 = secondDate.confidence;
     return { ...extractCandidates(raw), raw };
   } finally {
     bitmap.close();

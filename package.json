@@ -7,7 +7,7 @@
     "dev": "vite --host 0.0.0.0",
     "build": "vite build",
     "test": "vitest run",
-    "test:browser": "node tests/browser.cjs && node tests/v03-browser.cjs && node tests/v04-browser.cjs && node tests/template-browser.cjs",
+    "test:browser": "node tests/browser.cjs && node tests/v03-browser.cjs && node tests/v04-browser.cjs && node tests/template-browser.cjs && node tests/ocr-batch-browser.cjs",
     "lint": "eslint src tests"
   },
   "devDependencies": {

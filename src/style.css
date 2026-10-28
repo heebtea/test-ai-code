@@ -817,3 +817,61 @@ dialog p {
     flex-wrap: wrap;
   }
 }
+.ocr-batch-tools {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+.ocr-group {
+  font-size: 14px;
+  margin: 16px 0 6px;
+  color: var(--muted);
+}
+.ocr-row {
+  margin: 6px 0;
+  padding: 9px 11px;
+}
+.ocr-row-head {
+  align-items: center;
+}
+.ocr-row-head label {
+  flex: 1;
+  gap: 9px;
+  min-width: 0;
+  cursor: pointer;
+}
+.ocr-caption {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 3px;
+}
+.ocr-caption small {
+  overflow-wrap: anywhere;
+  color: var(--muted);
+}
+.ocr-badge {
+  font-size: 11px;
+  color: var(--muted);
+  text-align: right;
+}
+.ocr-details > summary {
+  font-size: 12px;
+  min-height: 26px;
+}
+.ocr-row-error {
+  color: #b02733;
+}
+.ocr-fields label {
+  margin: 4px 0;
+}
+#ocr-totals,
+#ocr-result {
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+}
+:root[data-theme="dark"] .ocr-row-error {
+  color: #ffabab;
+}
