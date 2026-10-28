@@ -129,4 +129,3 @@ it("uncertain sleep score remains a separate pending candidate rather than enter
   expect(sleeps[1].score).toBe(71);
   expect(sleeps[1].recommended).toBe(false);
 });
-
