@@ -1,7 +1,15 @@
 export const STORAGE_KEY = "second-brain-lite-v2";
 export const THEME_KEY = "second-brain-theme";
-export const types = ["sleep", "coffee", "water", "activity", "spending"];
-export const empty = () => ({ version: 2, records: [] });
+export const types = [
+  "sleep",
+  "coffee",
+  "water",
+  "activity",
+  "sunlight",
+  "meal",
+  "spending",
+];
+export const empty = () => ({ version: 3, records: [] });
 export function localDate(d = new Date()) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
@@ -26,6 +34,8 @@ export const fields = {
   water: { volume: 100000 },
   activity: { steps: 1000000, minutes: 1440 },
   spending: { amount: 100000000 },
+  meal: { amount: 100000000 },
+  sunlight: { minutes: 1440 },
 };
 const statuses = {
   sleep: ["已完成"],
@@ -33,6 +43,8 @@ const statuses = {
   water: ["已飲用"],
   activity: ["未完成", "已完成"],
   spending: ["未付款", "已付款"],
+  meal: ["未確認", "部分", "吃完"],
+  sunlight: ["已記錄"],
 };
 export { statuses };
 export function validateRecord(r) {
@@ -47,6 +59,11 @@ export function validateRecord(r) {
     "time",
     ...Object.keys(fields[r.type] || {}),
     ...(r.type === "coffee" ? ["payment"] : []),
+    ...(r.type === "coffee" ? ["purchaseDate"] : []),
+    ...(r.type === "meal"
+      ? ["name", "paid", "paymentDate", "orderDate", "startTime", "endTime"]
+      : []),
+    ...(r.type === "sunlight" ? ["source"] : []),
   ];
   if (
     Object.keys(r).some((k) => !allowed.includes(k)) ||
@@ -64,6 +81,37 @@ export function validateRecord(r) {
     (r.time !== "" && !/^([01]\d|2[0-3]):[0-5]\d$/.test(r.time))
   )
     throw Error("文字或時間格式無效");
+  const timeValid = (v) =>
+    typeof v === "string" && (v === "" || /^([01]\d|2[0-3]):[0-5]\d$/.test(v));
+  if (r.type === "meal") {
+    if (
+      typeof r.name !== "string" ||
+      !r.name.trim() ||
+      r.name.length > 100 ||
+      ![true, false, null].includes(r.paid) ||
+      !(r.paymentDate === null || validDate(r.paymentDate)) ||
+      !(r.orderDate === null || validDate(r.orderDate)) ||
+      !timeValid(r.startTime) ||
+      !timeValid(r.endTime)
+    )
+      throw Error("餐點名稱、付款或用餐時間格式無效");
+    if (r.paid !== true && r.paymentDate !== null)
+      throw Error("未付款或未確認付款時，付款日期請留空");
+    if (r.startTime && r.endTime && r.endTime < r.startTime)
+      throw Error("結束時間不可早於開始時間；跨日請分筆記錄");
+  }
+  if (
+    r.type === "sunlight" &&
+    (typeof r.source !== "string" || r.source.length > 100)
+  )
+    throw Error("日照來源格式無效");
+  if (
+    r.type === "coffee" &&
+    r.purchaseDate !== undefined &&
+    r.purchaseDate !== null &&
+    !validDate(r.purchaseDate)
+  )
+    throw Error("購買日期無效");
   for (const [k, max] of Object.entries(fields[r.type]))
     if (
       r[k] !== null &&
@@ -88,6 +136,8 @@ export function validateRecord(r) {
     throw Error("深睡與 REM 合計不能超過總睡眠");
   if (
     !Object.keys(fields[r.type]).some((k) => r[k] !== null) &&
+    r.type !== "meal" &&
+    !(r.type === "sunlight" && r.source.trim()) &&
     !r.note.trim() &&
     !r.time
   )
@@ -97,14 +147,16 @@ export function validateRecord(r) {
 export function validate(data) {
   if (
     !data ||
-    data.version !== 2 ||
+    ![2, 3].includes(data.version) ||
     !Array.isArray(data.records) ||
     Object.keys(data).some((k) => !["version", "records"].includes(k)) ||
     data.records.length > 10000
   )
-    throw Error("僅接受 v2 備份（最多 10000 筆）");
+    throw Error("僅接受 v2 / v3 備份（最多 10000 筆）");
   const ids = new Set();
   for (const r of data.records) {
+    if (data.version === 2 && ["meal", "sunlight"].includes(r.type))
+      throw Error("新類別請使用 v3 備份");
     validateRecord(r);
     if (ids.has(r.id)) throw Error("備份含重複 ID");
     ids.add(r.id);
@@ -124,10 +176,10 @@ export function parseBackup(s) {
 export function upsert(data, r) {
   validateRecord(r);
   const old = data.records.find((x) => x.id === r.id);
-  if (old && (old.type !== r.type || old.date !== r.date))
-    throw Error("不可變更既有 ID 的日期或類別");
+  if (old && old.type !== r.type) throw Error("不可變更既有 ID 的類別");
   return validate({
     ...data,
+    version: 3,
     records: [...data.records.filter((x) => x.id !== r.id), r],
   });
 }
@@ -150,7 +202,7 @@ export function merge(data, incoming) {
     )
       conflicts++;
   }
-  return { data: validate({ version: 2, records }), added, conflicts };
+  return { data: validate({ version: 3, records }), added, conflicts };
 }
 export function loadRecords(storage) {
   const s = storage.getItem(STORAGE_KEY);
@@ -164,7 +216,9 @@ export function rows(data, date, type) {
   return data.records.filter((r) => r.date === date && r.type === type);
 }
 export function sum(rs, key) {
-  const known = rs.filter((r) => r[key] !== null);
+  const known = rs.filter(
+    (r) => typeof r[key] === "number" && Number.isFinite(r[key]),
+  );
   return {
     value: known.length
       ? known.reduce((s, r) => s + Math.round(r[key] * 100), 0) / 100
@@ -175,8 +229,10 @@ export function sum(rs, key) {
 export function expenses(data, date) {
   return data.records.filter(
     (r) =>
-      r.date === date &&
-      ((r.type === "spending" && r.status === "已付款") ||
-        (r.type === "coffee" && r.payment === "purchase")),
+      (r.type === "spending" && r.date === date && r.status === "已付款") ||
+      (r.type === "coffee" &&
+        r.payment === "purchase" &&
+        (r.purchaseDate === undefined ? r.date : r.purchaseDate) === date) ||
+      (r.type === "meal" && r.paid === true && r.paymentDate === date),
   );
 }

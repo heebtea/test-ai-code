@@ -27,7 +27,9 @@ process.on("exit", () => server.kill());
   const browser = await chromium.launch({
     ...(process.env.CHROME_PATH
       ? { executablePath: process.env.CHROME_PATH }
-      : { channel: "chrome" }),
+      : process.env.CI
+        ? {}
+        : { channel: "chrome" }),
     headless: true,
   });
   let passed = 0;
@@ -44,7 +46,7 @@ process.on("exit", () => server.kill());
     await page.goto("http://127.0.0.1:4173/test-ai-code/");
     assert.equal(
       await page.locator(".metric").filter({ hasText: "尚無資料" }).count(),
-      5,
+      7,
     );
     assert.equal(
       await page.evaluate(
@@ -55,6 +57,7 @@ process.on("exit", () => server.kill());
     await page.locator("[data-add=water]").click();
     await page.locator("[name=volume]").fill("321");
     await page.locator("#edit-form .save").click();
+    await page.locator(".water summary").click();
     await page.locator(".water [data-edit]").click();
     await page.locator("[name=volume]").fill("456");
     await page.locator("#edit-form .save").click();
@@ -84,38 +87,34 @@ process.on("exit", () => server.kill());
     const backup = fs.readFileSync(await download.path());
     const parsed = JSON.parse(backup);
     assert.equal(parsed.records.length, 2);
+    await page.locator(".water details").evaluate((e) => (e.open = true));
     await page.locator(".water [data-delete]").click();
     await page.locator("#no").click();
     assert.equal(await page.locator(".water [data-edit]").count(), 1);
+    await page.locator(".water details").evaluate((e) => (e.open = true));
     await page.locator(".water [data-delete]").click();
     await page.locator("#yes").click();
     assert.equal(await page.locator(".water .metric").innerText(), "尚無資料");
-    await page
-      .locator("#import")
-      .setInputFiles({
-        name: "backup.json",
-        mimeType: "application/json",
-        buffer: backup,
-      });
+    await page.locator("#import").setInputFiles({
+      name: "backup.json",
+      mimeType: "application/json",
+      buffer: backup,
+    });
     await page.locator("#confirm").waitFor({ state: "visible" });
     await page.locator("#no").click();
     assert.equal(await page.locator(".water .metric").innerText(), "尚無資料");
-    await page
-      .locator("#import")
-      .setInputFiles({
-        name: "backup.json",
-        mimeType: "application/json",
-        buffer: backup,
-      });
+    await page.locator("#import").setInputFiles({
+      name: "backup.json",
+      mimeType: "application/json",
+      buffer: backup,
+    });
     await page.locator("#yes").click();
     assert.match(await page.locator(".water .metric").innerText(), /456/);
-    await page
-      .locator("#import")
-      .setInputFiles({
-        name: "backup.json",
-        mimeType: "application/json",
-        buffer: backup,
-      });
+    await page.locator("#import").setInputFiles({
+      name: "backup.json",
+      mimeType: "application/json",
+      buffer: backup,
+    });
     await page.locator("#yes").click();
     assert.equal(
       await page.evaluate(
@@ -125,13 +124,11 @@ process.on("exit", () => server.kill());
       ),
       2,
     );
-    await page
-      .locator("#import")
-      .setInputFiles({
-        name: "broken.json",
-        mimeType: "application/json",
-        buffer: Buffer.from("{bad"),
-      });
+    await page.locator("#import").setInputFiles({
+      name: "broken.json",
+      mimeType: "application/json",
+      buffer: Buffer.from("{bad"),
+    });
     await page.waitForFunction(() =>
       document.querySelector("#message").textContent.includes("匯入失敗"),
     );

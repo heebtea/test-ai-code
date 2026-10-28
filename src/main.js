@@ -26,6 +26,8 @@ const names = {
   water: "飲水",
   activity: "活動",
   spending: "花費",
+  meal: "餐點",
+  sunlight: "日照",
 };
 const labels = {
   minutes: "時間（分鐘）",
@@ -69,6 +71,11 @@ function total(rs, k, u) {
 }
 function detail(r) {
   return [
+    r.name,
+    r.source,
+    r.type === "meal"
+      ? `訂購日：${r.orderDate ?? "尚無資料"} · 付款：${r.paid === null ? "未確認" : r.paid ? "已付款" : "未付款"} · 付款日：${r.paymentDate ?? "尚無資料"} · 用餐：${r.startTime || "尚無資料"}–${r.endTime || "尚無資料"}`
+      : "",
     r.status,
     r.time,
     ...Object.keys(fields[r.type]).map((k) => `${labels[k]}：${fmt(r[k])}`),
@@ -76,6 +83,9 @@ function detail(r) {
       ? r.payment === "voucher"
         ? "兌換券（不計支出）"
         : "購買（計入支出）"
+      : "",
+    r.type === "coffee"
+      ? `購買日：${r.purchaseDate === undefined ? r.date : (r.purchaseDate ?? "尚無資料")}`
       : "",
     r.note,
   ]
@@ -92,7 +102,7 @@ function save(next) {
 }
 function render() {
   document.documentElement.dataset.theme = theme;
-  app.innerHTML = `<div class="shell"><header class="topbar"><div class="brand">✳ SECOND BRAIN LITE v0.2</div><button id="theme" class="theme-toggle">${theme === "dark" ? "淺色" : "深色"}模式</button></header><main><div class="intro"><div><h1>生活，一筆一筆記錄。</h1><p>真實紀錄版 · 空白開始，由你確認。</p></div></div><div class="notice">資料僅存在此瀏覽器 localStorage，不會上傳或同步。清除瀏覽器資料前請匯出備份；備份含個人資料，請自行妥善保管。</div><p id="message" role="status">${esc(message)}</p><div class="toolbar"><button id="export">匯出 JSON 備份</button><label class="file-button">匯入 JSON 備份<input id="import" type="file" accept="application/json,.json" ${blocked ? "disabled" : ""}></label>${blocked ? '<button id="raw">匯出原始儲存內容</button>' : ""}</div><div class="section-heading"><h2>每日總覽</h2><div class="date-nav"><button id="prev" aria-label="前一天">‹</button><input id="date" type="date" min="1900-01-01" max="2199-12-31" value="${date}" aria-label="選擇日期"><button id="next" aria-label="後一天">›</button></div></div><div class="dashboard">${types
+  app.innerHTML = `<div class="shell"><header class="topbar"><div class="brand">✳ SECOND BRAIN LITE v0.3</div><button id="theme" class="theme-toggle">${theme === "dark" ? "淺色" : "深色"}模式</button></header><main><div class="intro"><div><h1>Project Second Brain</h1><p>生活小誌 · 留下今天的一點線索。</p></div></div><div class="notice">資料僅存在此瀏覽器 localStorage，不會上傳或同步。清除瀏覽器資料前請匯出備份；備份含個人資料，請自行妥善保管。</div><p id="message" role="status">${esc(message)}</p><div class="toolbar"><button id="export">匯出 JSON 備份</button><label class="file-button">匯入 JSON 備份<input id="import" type="file" accept="application/json,.json" ${blocked ? "disabled" : ""}></label>${blocked ? '<button id="raw">匯出原始儲存內容</button>' : ""}</div><div class="section-heading"><h2>每日總覽</h2><div class="date-nav"><button id="prev" aria-label="前一天">‹</button><input id="date" type="date" min="1900-01-01" max="2199-12-31" value="${date}" aria-label="選擇日期"><button id="next" aria-label="後一天">›</button></div></div><div class="dashboard">${types
     .map((type) => {
       const rs = rows(data, date, type);
       let summary = "尚無資料";
@@ -110,9 +120,12 @@ function render() {
           "steps",
           "步已完成",
         );
+      if (type === "sunlight") summary = total(rs, "minutes", "分鐘");
+      if (type === "meal" && rs.length)
+        summary = `${rs.some((r) => r.status === "吃完") ? rs.filter((r) => r.status === "吃完").length + " 筆吃完" : "完整食用尚無資料"} · ${rs.filter((r) => r.status === "部分").length} 筆部分 · ${rs.filter((r) => r.status === "未確認").length} 筆未確認`;
       if (type === "spending")
         summary = total(expenses(data, date), "amount", "NT$");
-      return `<section class="card ${type}"><div class="card-head"><h2>${names[type]}</h2><button data-add="${type}" ${blocked ? "disabled" : ""}>新增</button></div><div class="metric">${summary}</div>${type === "spending" ? "<p>已付款支出＋購買咖啡逐筆加總。咖啡勿再新增至花費；兌換券只在購券時記一次花費。</p>" : ""}${
+      return `<section class="card ${type}"><div class="card-head"><h2>${names[type]}</h2><button data-add="${type}" ${blocked ? "disabled" : ""}>新增</button></div><div class="metric">${summary}</div><details class="record-details"><summary>紀錄明細（${rs.length}）</summary>${type === "spending" ? "<p>依付款日計算餐點、購買日計算咖啡，加上已付款花費。餐點與咖啡請勿再記一筆花費；券只在購券時記帳。付款日期未知的餐點不推定為今日支出。</p>" : ""}${
         type === "activity"
           ? `<p>已完成時間：${total(
               rs.filter((r) => r.status === "已完成"),
@@ -120,11 +133,24 @@ function render() {
               "分鐘",
             )}</p>`
           : ""
-      }<ul>${rs.map((r) => `<li><p>${esc(detail(r))}</p><button data-edit="${r.id}" ${blocked ? "disabled" : ""}>編輯</button><button data-delete="${r.id}" ${blocked ? "disabled" : ""}>刪除</button></li>`).join("")}</ul>${rs.length ? "" : "<p>尚無資料</p>"}</section>`;
+      }<ul>${rs.map((r) => `<li><p>${esc(detail(r))}</p><button data-edit="${r.id}" ${blocked ? "disabled" : ""}>編輯</button><button data-delete="${r.id}" ${blocked ? "disabled" : ""}>刪除</button></li>`).join("")}</ul>${rs.length ? "" : "<p>尚無資料</p>"}</details></section>`;
     })
     .join(
       "",
-    )}</div><p class="footer">睡眠以起床日期記錄；活動請記錄不重疊的區段。空白數值代表未知，只有明確輸入 0 才是零。</p></main></div><dialog id="editor" aria-labelledby="dialog-title"></dialog><dialog id="confirm" aria-labelledby="confirm-title"></dialog>`;
+    )}</div><details class="timeline"><summary>當日時間軸</summary><ul>${
+    data.records
+      .filter((r) => r.date === date)
+      .sort((a, b) =>
+        (a.startTime || a.time || "99:99").localeCompare(
+          b.startTime || b.time || "99:99",
+        ),
+      )
+      .map(
+        (r) =>
+          `<li>${esc(r.startTime || r.time || "時間未確認")} · ${names[r.type]} · ${esc(r.name || r.status)}</li>`,
+      )
+      .join("") || "<li>尚無資料</li>"
+  }</ul></details><p class="footer">睡眠以起床日期記錄；活動請記錄不重疊的區段。空白數值代表未知，只有明確輸入 0 才是零。</p></main></div><dialog id="editor" aria-labelledby="dialog-title"></dialog><dialog id="confirm" aria-labelledby="confirm-title"></dialog>`;
   document.querySelector("#theme").onclick = () => {
     theme = theme === "dark" ? "light" : "dark";
     try {
@@ -236,10 +262,21 @@ function edit(type, record) {
     note: "",
     time: "",
     ...Object.fromEntries(Object.keys(fields[type]).map((k) => [k, null])),
-    ...(type === "coffee" ? { payment: "purchase" } : {}),
+    ...(type === "coffee" ? { payment: "purchase", purchaseDate: date } : {}),
+    ...(type === "meal"
+      ? {
+          name: "",
+          paid: null,
+          paymentDate: null,
+          orderDate: null,
+          startTime: "",
+          endTime: "",
+        }
+      : {}),
+    ...(type === "sunlight" ? { source: "" } : {}),
   };
   const d = document.querySelector("#editor");
-  d.innerHTML = `<form id="edit-form"><h2 id="dialog-title">${record ? "編輯" : "新增"}${names[type]}</h2><p>${date} · 空白代表未知。${type === "coffee" ? "兌換券請勿填金額；飲用中不計入已飲用量。" : ""}</p><div id="form-fields">${Object.entries(
+  d.innerHTML = `<form id="edit-form"><h2 id="dialog-title">${record ? "編輯" : "新增"}${names[type]}</h2><p>${r.date} · 空白代表未知。餐點紀錄不代表已食用；只有「吃完」才算完整食用。${type === "coffee" ? "兌換券請勿填金額；飲用中不計入已飲用量。購買日與飲用紀錄日分開計算。" : ""}</p><div id="form-fields"><label>${type === "meal" ? "預定／實際用餐日期" : "紀錄日期"}<input name="date" type="date" value="${r.date}" required></label>${type === "meal" ? `<label>訂購日期（未知留空）<input name="orderDate" type="date" value="${r.orderDate ?? ""}"></label><label>餐點名稱<input name="name" maxlength="100" required value="${esc(r.name)}"></label><label>付款狀態<select name="paid"><option value="unknown" ${r.paid === null ? "selected" : ""}>未確認</option><option value="yes" ${r.paid === true ? "selected" : ""}>已付款</option><option value="no" ${r.paid === false ? "selected" : ""}>未付款</option></select></label><label>實際付款日期<input type="date" name="paymentDate" value="${r.paymentDate ?? ""}"></label><label>開始用餐<input type="time" name="startTime" value="${r.startTime}"></label><label>結束用餐<input type="time" name="endTime" value="${r.endTime}"></label>` : ""}${type === "sunlight" ? `<label>來源（如 Apple Watch）<input name="source" maxlength="100" value="${esc(r.source)}"></label>` : ""}${type === "coffee" ? `<label>實際購買日期（未知留空）<input name="purchaseDate" type="date" value="${r.purchaseDate === undefined ? r.date : (r.purchaseDate ?? "")}"></label>` : ""}${Object.entries(
     fields[type],
   )
     .map(
@@ -248,7 +285,7 @@ function edit(type, record) {
     )
     .join(
       "",
-    )}<label>時間<input type="time" name="time" value="${r.time}"></label><label>狀態<select name="status">${statuses[type].map((s) => `<option ${r.status === s ? "selected" : ""}>${s}</option>`).join("")}</select></label>${type === "coffee" ? `<label>付款方式<select name="payment"><option value="purchase" ${r.payment === "purchase" ? "selected" : ""}>購買</option><option value="voucher" ${r.payment === "voucher" ? "selected" : ""}>兌換券（不重複記帳）</option></select></label>` : ""}<label>說明<input name="note" maxlength="500" value="${esc(r.note)}"></label></div><p class="error" role="alert"></p><div class="dialog-actions"><button type="button" id="cancel">取消</button><button class="save">儲存</button></div></form>`;
+    )}${type === "meal" ? "" : `<label>時間<input type="time" name="time" value="${r.time}"></label>`}<label>狀態<select name="status">${statuses[type].map((s) => `<option ${r.status === s ? "selected" : ""}>${s}</option>`).join("")}</select></label>${type === "coffee" ? `<label>付款方式<select name="payment"><option value="purchase" ${r.payment === "purchase" ? "selected" : ""}>購買</option><option value="voucher" ${r.payment === "voucher" ? "selected" : ""}>兌換券（不重複記帳）</option></select></label>` : ""}<label>說明<input name="note" maxlength="500" value="${esc(r.note)}"></label></div><p class="error" role="alert"></p><div class="dialog-actions"><button type="button" id="cancel">取消</button><button class="save">儲存</button></div></form>`;
   d.querySelector("#cancel").onclick = () => d.close();
   d.querySelector("form").onsubmit = (e) => {
     e.preventDefault();
@@ -256,6 +293,13 @@ function edit(type, record) {
       const values = Object.fromEntries(new FormData(e.target));
       for (const k of Object.keys(fields[type]))
         values[k] = values[k].trim() === "" ? null : Number(values[k]);
+      if (type === "meal") {
+        values.paid =
+          values.paid === "yes" ? true : values.paid === "no" ? false : null;
+        values.paymentDate = values.paymentDate || null;
+        values.orderDate = values.orderDate || null;
+      }
+      if (type === "coffee") values.purchaseDate = values.purchaseDate || null;
       save(upsert(data, { ...r, ...values }));
       d.close();
       render();

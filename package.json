@@ -1,15 +1,19 @@
 {
   "name": "project-second-brain-lite",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "vite --host 0.0.0.0",
     "build": "vite build",
     "test": "vitest run",
-    "test:browser": "node tests/browser.cjs"
+    "test:browser": "node tests/browser.cjs && node tests/v03-browser.cjs",
+    "lint": "eslint src tests"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.13.0",
+    "globals": "^17.13.0",
     "jsdom": "^27.0.0",
     "playwright-core": "^1.64.1",
     "vite": "^7.0.0",
