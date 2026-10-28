@@ -199,6 +199,7 @@ export function validateRecord(r) {
     r.type !== "draft" &&
     r.type !== "beverage" &&
     !(r.type === "sunlight" && r.source.trim()) &&
+    !(r.type === "water" && (r.capacity !== null && r.capacity !== undefined || r.startTime || r.endTime)) &&
     !r.note.trim() &&
     !r.time
   )
