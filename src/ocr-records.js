@@ -89,12 +89,18 @@ export function planCandidates(data, items) {
         )
           combined[key] = r[key];
       if (!combined.note && r.note) combined.note = r.note;
+      if (JSON.stringify(combined) === JSON.stringify(old)) {
+        skipped++;
+        continue;
+      }
       next = upsert(next, combined);
       merged++;
       continue;
     }
     if (matches.length && item.action !== "add")
       throw Error("請選擇衝突處理方式");
+    if (next.records.some((existing) => existing.id === r.id))
+      throw Error("候選 ID 與現有紀錄衝突，未覆寫任何資料");
     next = upsert(next, r);
     added++;
   }
