@@ -46,9 +46,11 @@ export function candidateRecord(values, id) {
       startTime: values.startTime || "",
       endTime: values.endTime || "",
     });
+  if (type === "beverage") Object.assign(r,{name:values.name||'',volume:numeric(values.volume),amount:numeric(values.amount),paid:values.paid===''?null:values.paid==='yes',paymentDate:values.paymentDate||null,startTime:values.startTime||'',endTime:values.endTime||''});
   if (type === "water") Object.assign(r, { volume: numeric(values.volume) });
   if (type === "spending") Object.assign(r, { amount: numeric(values.amount) });
   if (type === "event") Object.assign(r, { name: values.name || "" });
+  if (type === "journal") Object.assign(r, {theme:values.theme||"",highlight:values.highlight||"",wellbeing:values.wellbeing||"",mood:values.mood||"",todo:values.todo||""});
   return validateRecord(r);
 }
 // Merge fills unknown numeric/text fields only and never changes date, status, payment or existing facts.
@@ -59,6 +61,7 @@ const fillKeys = {
   meal: ["amount", "startTime", "endTime", "orderDate"],
   coffee: ["volume", "amount", "startTime", "endTime"],
   water: ["volume"],
+  beverage: ["volume","amount","startTime","endTime"],
   spending: ["amount"],
   event: [],
 };

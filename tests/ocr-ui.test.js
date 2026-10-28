@@ -158,3 +158,16 @@ it("existing same day defaults to skip and another tab update cannot be overwrit
   );
   expect(JSON.parse(localStorage.getItem(STORAGE_KEY))).toEqual(other);
 });
+
+it("selects every candidate, saves uncertain records as drafts in one confirmation", async () => {
+  await recognize();
+  document.querySelector("#ocr-select-all").click();
+  expect(document.querySelectorAll("[data-select]:checked")).toHaveLength(5);
+  document.querySelector("#ocr-commit").click();
+  expect(document.querySelector("#confirm").textContent).toContain("暫存待確認 2 筆");
+  document.querySelector("#yes").click();
+  await vi.waitFor(() => expect(document.querySelector("#ocr-result").textContent).toContain("暫存待確認 2 筆"));
+  const data = JSON.parse(localStorage.getItem(STORAGE_KEY));
+  expect(data.records.filter(r => r.type === "draft")).toHaveLength(2);
+  expect(data.records.some(r => r.type === "meal" || r.type === "spending")).toBe(false);
+});

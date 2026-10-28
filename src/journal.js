@@ -4,6 +4,7 @@ export const names = {
   sleep: "睡眠",
   coffee: "咖啡",
   water: "飲水",
+  beverage: "飲品",
   activity: "活動",
   sunlight: "日照",
   meal: "餐點",
@@ -20,13 +21,13 @@ export function timeline(data, date) {
     if (r.type === "meal") {
       add(r.startTime, "開始用餐");
       add(r.endTime, r.status === "吃完" ? "完食" : "結束用餐");
-    } else if (r.type === "coffee") {
+    } else if (r.type === "coffee" || r.type === "beverage") {
       if (r.startTime || r.endTime) {
-        add(r.startTime, "開始喝咖啡");
-        add(r.endTime, r.status === "已飲用" ? "喝完咖啡" : "結束飲用");
+        add(r.startTime, r.type === "coffee" ? "開始喝咖啡" : "開始飲用");
+        add(r.endTime, r.status === "已飲用" ? (r.type === "coffee" ? "喝完咖啡" : "喝完飲品") : "結束飲用");
       }
       if (r.time && r.time !== r.startTime && r.time !== r.endTime)
-        add(r.time, "咖啡紀錄");
+        add(r.time, r.type === "coffee" ? "咖啡紀錄" : "飲品紀錄");
     } else add(r.time, names[r.type]);
   }
   return entries.sort(
@@ -55,6 +56,7 @@ export function journalSections(data, date) {
     "mL",
   );
   add("飲水", rows(data, date, "water"), "volume", "mL");
+  add("其他飲品已飲用", rows(data,date,"beverage").filter(r=>r.status === "已飲用"), "volume", "mL");
   const meals = rows(data, date, "meal");
   if (meals.length)
     result.push({
@@ -175,7 +177,7 @@ export function drawTemplateJournal(canvas, data, date, template) {
   const groups = {
     overview: ["每日主題"],
     health: ["睡眠", "活動", "活動時間", "日照"],
-    food: ["餐點", "咖啡已飲用", "飲水", "已付款花費"],
+    food: ["餐點", "咖啡已飲用", "飲水", "其他飲品已飲用", "已付款花費"],
     highlight: ["今日亮點"],
     body: ["身體狀況", "心情"],
     todo: ["待辦事項"],

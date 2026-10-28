@@ -1,5 +1,6 @@
 import { createWorker } from "tesseract.js";
 import { validDate } from "./data.js";
+import { layoutIsRecognized,layoutZones,zoneCandidates } from "./ocr-layout.js";
 const clean = (s) => s.replace(/[\u3000\s]+/g, " ");
 const matchNumber = (s) => {
   const m = s.match(/\b\d{1,3}(?:,\d{3})+\b|\b\d{4,6}\b/);
@@ -38,35 +39,8 @@ export function extractCandidates(raw) {
   if (steps !== null) push("activity", { steps }, clean(raw.steps));
   const sun = clean(raw.sunlight || "").match(/(\d{1,4})\s*分\s*鐘/);
   if (sun) push("sunlight", { minutes: Number(sun[1]) }, clean(raw.sunlight));
-  // Lines are suggestions only: no inferred payment or consumption state.
-  for (const line of (raw.whole || "").split("\n").map(clean).filter(Boolean)) {
-    if (
-      /(?:午餐|晚餐|早餐|餐點|飯|麵|麵包|便當)/.test(line) &&
-      line.length < 180
-    )
-      push("meal", { name: line.slice(0, 100), amount: null }, line);
-    else if (/(?:美\s*式|咖啡)/.test(line) && line.length < 180)
-      push("coffee", { amount: null, volume: null }, line);
-    else if (/(?:飲\s*品|飲\s*水|清\s*水)/.test(line) && line.length < 180)
-      push("water", { volume: null }, line);
-    const amounts = [...line.matchAll(/\$\s*(\d+(?:\.\d{1,2})?)/g)];
-    if (amounts.length === 1 && line.length < 120)
-      push("spending", { amount: Number(amounts[0][1]) }, line);
-    const times = [...line.matchAll(/\b([01]?\d|2[0-3]):([0-5]\d)\b/g)];
-    if (
-      times.length === 1 &&
-      line.length > times[0][0].length + 2 &&
-      line.length < 120
-    )
-      push(
-        "event",
-        {
-          time: `${times[0][1].padStart(2, "0")}:${times[0][2]}`,
-          name: line.slice(0, 100),
-        },
-        line,
-      );
-  }
+  const regions=raw.regions && Object.keys(raw.regions).length ? raw.regions : {unknown:raw.whole||''};
+  const regionalCandidates = zoneCandidates(regions,date);
   const dateMatches = [
     ...dateText.matchAll(
       /\b(20\d{2})\s*[.\-/年]\s*(\d{1,2})\s*[.\-/月]\s*(\d{1,2})\b/g,
@@ -112,6 +86,7 @@ export function extractCandidates(raw) {
     });
     sleepRow.score = null;
   }
+  result.push(...regionalCandidates);
   for (const c of result) {
     let evidence = false,
       ocrScore = 0;
@@ -157,7 +132,7 @@ export function extractCandidates(raw) {
             : "辨識依據不足或狀態待確認");
     if (c.recommended) c.status = c.type === "sunlight" ? "已記錄" : "已完成";
   }
-  return { date, dateConflict, candidates: result.slice(0, 60) };
+  return { date, dateConflict, candidates: result };
 }
 function crop(bitmap, rect, scale = 3) {
   const c = document.createElement("canvas");
@@ -224,6 +199,15 @@ export async function recognizeCard(file, progress = () => {}) {
       .data;
     raw.date2 = secondDate.text;
     raw.confidences.date2 = secondDate.confidence;
+    raw.regions = {};
+    if(layoutIsRecognized(raw.whole)){
+      await worker.setParameters({tessedit_pageseg_mode:'6'});
+      let done=0;
+      for(const [zone,rect] of Object.entries(layoutZones)){
+        progress('辨識小誌分區',done++/Object.keys(layoutZones).length);
+        raw.regions[zone]=(await worker.recognize(crop(bitmap,rect,2))).data.text;
+      }
+    }
     return { ...extractCandidates(raw), raw };
   } finally {
     bitmap.close();
