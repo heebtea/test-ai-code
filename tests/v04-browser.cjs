@@ -193,7 +193,7 @@ const server = spawn(
         const backup = JSON.parse(
           fs.readFileSync(await (await jsonDownload).path(), "utf8"),
         );
-        assert.equal(backup.version, 4);
+        assert.equal(backup.version, 5);
         assert.equal(backup.records.length, 5);
         const eventId = backup.records.find((r) => r.type === "event").id;
         assert.equal(JSON.stringify(backup).includes("image/png"), false);
