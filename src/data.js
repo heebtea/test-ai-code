@@ -142,7 +142,7 @@ export function validateRecord(r) {
       const chronological = [];
       for (const s of r.segments) {
         if (!s || typeof s !== "object" || Array.isArray(s) || Object.keys(s).length !== 3 || !["start", "end", "stage"].every((k) => Object.hasOwn(s, k)) || !["awake", "rem", "core", "deep"].includes(s.stage)) throw Error("睡眠分段格式無效");
-        const timeFormat = /^\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:Z|[+-](?:[01]\\d|2[0-3]):[0-5]\\d)$/;
+        const timeFormat = /^\d{4}-\d{2}-\d{2}T(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:Z|[+-](?:[01]\d|2[0-3]):[0-5]\d)$/;
         if (typeof s.start !== "string" || typeof s.end !== "string" || !timeFormat.test(s.start) || !timeFormat.test(s.end)) throw Error("睡眠分段須使用含時區的 ISO 時間");
         const a = Date.parse(s.start), b = Date.parse(s.end);
         if (!Number.isFinite(a) || !Number.isFinite(b) || b <= a || b - a > 86400000) throw Error("睡眠分段時間無效");
