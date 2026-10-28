@@ -1,5 +1,5 @@
 import { validateRecord, upsert } from "./data.js";
-const numeric = (v) => (v === "" ? null : Number(v));
+const numeric = (v) => (v === "" || v == null ? null : Number(v));
 export function candidateRecord(values, id) {
   const type = values.type;
   const r = {
@@ -31,7 +31,7 @@ export function candidateRecord(values, id) {
     Object.assign(r, {
       name: values.name || "",
       amount: numeric(values.amount),
-      paid: values.paid === "" ? null : values.paid === "yes",
+      paid: !values.paid ? null : values.paid === "yes",
       paymentDate: values.paymentDate || null,
       orderDate: values.orderDate || null,
       startTime: values.startTime || "",
@@ -46,7 +46,7 @@ export function candidateRecord(values, id) {
       startTime: values.startTime || "",
       endTime: values.endTime || "",
     });
-  if (type === "beverage") Object.assign(r,{name:values.name||'',volume:numeric(values.volume),amount:numeric(values.amount),paid:values.paid===''?null:values.paid==='yes',paymentDate:values.paymentDate||null,startTime:values.startTime||'',endTime:values.endTime||''});
+  if (type === "beverage") Object.assign(r,{name:values.name||'',volume:numeric(values.volume),amount:numeric(values.amount),paid:!values.paid?null:values.paid==='yes',paymentDate:values.paymentDate||null,startTime:values.startTime||'',endTime:values.endTime||''});
   if (type === "water") Object.assign(r, { volume: numeric(values.volume) });
   if (type === "spending") Object.assign(r, { amount: numeric(values.amount) });
   if (type === "event") Object.assign(r, { name: values.name || "" });
@@ -65,6 +65,23 @@ const fillKeys = {
   spending: ["amount"],
   event: [],
 };
+// Compare every stored fact, never just date/type or a name/time shortcut.
+export function exactRecord(a, b) {
+  const keys = new Set([...Object.keys(a), ...Object.keys(b)]);
+  keys.delete("id");
+  return [...keys].every((k) => {
+    const fallback = ["startTime", "endTime"].includes(k) ? "" : null;
+    // Legacy coffee records imply purchaseDate=date; do not erase that fact.
+    const value = (r) => k === "purchaseDate" && r.type === "coffee" && r[k] === undefined ? r.date : (r[k] ?? fallback);
+    return value(a) === value(b);
+  });
+}
+export function findExactCandidate(data, values) {
+  try {
+    const record = candidateRecord(values, "comparison");
+    return data.records.find((r) => exactRecord(r, record));
+  } catch { return undefined; }
+}
 export function planCandidates(data, items) {
   let next = data,
     added = 0,
@@ -75,7 +92,7 @@ export function planCandidates(data, items) {
     const matches = next.records.filter(
       (x) => x.type === r.type && x.date === r.date,
     );
-    if (matches.length && item.action === "skip") {
+    if (matches.some((x) => exactRecord(x, r))) {
       skipped++;
       continue;
     }
@@ -100,8 +117,8 @@ export function planCandidates(data, items) {
       merged++;
       continue;
     }
-    if (matches.length && item.action !== "add")
-      throw Error("請選擇衝突處理方式");
+    if (matches.length && ["sleep", "activity", "sunlight"].includes(r.type) && item.action !== "add")
+      throw Error("同日數據內容不同，請確認合併或另存，先保留草稿");
     if (next.records.some((existing) => existing.id === r.id))
       throw Error("候選 ID 與現有紀錄衝突，未覆寫任何資料");
     next = upsert(next, r);

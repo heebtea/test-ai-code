@@ -1,6 +1,7 @@
 import "./style.css";
 import { recognizeCard } from "./ocr.js";
 import { planReviewBatch } from "./ocr-review.js";
+import { findExactCandidate } from "./ocr-records.js";
 import { timeline, drawTemplateJournal, journalSections } from "./journal.js";
 import {
   baseTemplate,
@@ -655,7 +656,7 @@ function openOcr(initialFile, showDrafts = false) {
       target = row.querySelector("[data-target]"),
       prior = target.value;
     hint.textContent = matches.length
-      ? `同日同類已有 ${matches.length} 筆，請決定跳過、僅補空白或另存。`
+      ? `同日同類已有 ${matches.length} 筆；僅完全相同才跳過，不同數據保留待確認。`
       : "目前沒有同日同類紀錄；若多個候選相同，仍會依序檢查。";
     target.innerHTML =
       '<option value="">選擇既有紀錄</option>' +
@@ -715,7 +716,7 @@ function openOcr(initialFile, showDrafts = false) {
     ).length;
     const pending = all.length - selected - skipped;
     d.querySelector("#ocr-totals").textContent =
-      `共 ${all.length} 筆 · 已選 ${selected} · 預設跳過 ${skipped} · 待處理 ${pending}`;
+      `共 ${all.length} 筆 · 已選 ${selected} · 重複未選 ${skipped} · 待處理 ${pending}`;
   }
   function draw() {
     const short = (c) =>
@@ -764,7 +765,7 @@ function openOcr(initialFile, showDrafts = false) {
           entries
             .map(
               ({ c, i }) =>
-                `<section class="ocr-row" data-index="${i}" data-trusted="${!!c.recommended}" data-conflict="${!!c.duplicate}"><div class="ocr-row-head"><label><input type="checkbox" data-select ${c.checked ? "checked" : ""}> <span class="ocr-caption"><strong>${labels[c.type]}</strong><small>${esc(short(c))}</small></span></label><span class="ocr-badge">${esc(c.duplicate ? "可能重複" : c.reason || "待確認")}</span></div><details class="ocr-details"><summary>查看或修改</summary><label>紀錄類型<select data-field="type">${typeOptions.map((t) => `<option value="${t}" ${c.type === t ? "selected" : ""}>${labels[t]}</option>`).join("")}</select></label><p>原文線索：${esc(c.source || "手動新增")}</p><div class="ocr-fields">${fieldsHtml(c)}</div><p class="ocr-conflict"></p><label class="ocr-verified"><input type="checkbox" data-verified> 我已逐項核對，可寫入正式紀錄（資訊不完整時仍存草稿）</label><label>衝突處理<select data-action><option value="skip">有同日同類就跳過</option><option value="merge">只補既有紀錄的空白欄位</option><option value="add">仍另存一筆（可能重複）</option></select></label><label>合併目標<select data-target><option value="">選擇既有紀錄</option></select></label>${c.draftId ? `<button type="button" data-delete-draft="${esc(c.draftId)}">刪除此草稿</button>` : ""}<p class="ocr-row-error" role="alert"></p></details></section>`,
+                `<section class="ocr-row" data-index="${i}" data-trusted="${!!c.recommended}" data-conflict="${!!c.duplicate}"><div class="ocr-row-head"><label><input type="checkbox" data-select ${c.checked ? "checked" : ""}> <span class="ocr-caption"><strong>${labels[c.type]}</strong><small>${esc(short(c))}</small></span></label><span class="ocr-badge">${esc(c.duplicate ? "可能重複" : c.reason || "待確認")}</span></div><details class="ocr-details"><summary>查看或修改</summary><label>紀錄類型<select data-field="type">${typeOptions.map((t) => `<option value="${t}" ${c.type === t ? "selected" : ""}>${labels[t]}</option>`).join("")}</select></label><p>原文線索：${esc(c.source || "手動新增")}</p><div class="ocr-fields">${fieldsHtml(c)}</div><p class="ocr-conflict"></p><label class="ocr-verified"><input type="checkbox" data-verified> 我已逐項核對，可寫入正式紀錄（資訊不完整時仍存草稿）</label><label>衝突處理<select data-action><option value="skip">自動判斷（僅完全重複才跳過）</option><option value="merge">只補既有紀錄的空白欄位</option><option value="add">仍另存一筆（可能重複）</option></select></label><label>合併目標<select data-target><option value="">選擇既有紀錄</option></select></label>${c.draftId ? `<button type="button" data-delete-draft="${esc(c.draftId)}">刪除此草稿</button>` : ""}<p class="ocr-row-error" role="alert"></p></details></section>`,
             )
             .join("")
         );
@@ -798,7 +799,7 @@ function openOcr(initialFile, showDrafts = false) {
           updateConflict(row);
           const v = collect(row);
           row.dataset.conflict = String(
-            data.records.some((r) => r.type === v.type && r.date === v.date),
+            Boolean(findExactCandidate(data, v)),
           );
         }
         if (e.target.matches("[data-field]")) refreshRow(row);
@@ -829,12 +830,12 @@ function openOcr(initialFile, showDrafts = false) {
       if (!d.isConnected) return;
       const seen = new Set();
       candidates = result.candidates.map((c) => {
-        const key = c.type + ":" + c.date;
-        const exists = data.records.some(
-          (r) => r.type === c.type && r.date === c.date,
-        );
-        const duplicate = exists || (c.recommended && seen.has(key));
-        if (c.recommended) seen.add(key);
+        c = {...c, type: typeOptions.includes(c.type) ? c.type : 'unclassified'};
+        const values = Object.fromEntries(Object.entries(c).map(([k,v])=>[k,v == null ? '' : String(v)]));
+        values.source = c.originSource || '';
+        const key = JSON.stringify(values);
+        const duplicate = Boolean(findExactCandidate(data, values)) || seen.has(key);
+        seen.add(key);
         return {
           ...c,
           duplicate,
@@ -874,6 +875,8 @@ function openOcr(initialFile, showDrafts = false) {
     const current = oldRows.map((row) => ({
       ...candidates[Number(row.dataset.index)],
       ...collect(row),
+      originSource: collect(row).source ?? candidates[Number(row.dataset.index)].originSource,
+      source: candidates[Number(row.dataset.index)].source,
       checked: row.querySelector("[data-select]").checked,
     }));
     candidates = [...current, { type: "event", date: "", source: "手動新增" }];
@@ -909,19 +912,23 @@ function openOcr(initialFile, showDrafts = false) {
       if(running)throw Error('請等辨識完成');
       const selected=[...list.querySelectorAll('.ocr-row')].filter(r=>r.querySelector('[data-select]').checked);
       if(!selected.length)throw Error('請先選取候選項目');
-      const items=selected.map(row=>({index:Number(row.dataset.index),id:crypto.randomUUID(),draftId:candidates[Number(row.dataset.index)].draftId||null,source:candidates[Number(row.dataset.index)].source||'',values:collect(row),action:row.querySelector('[data-action]').value,target:row.querySelector('[data-target]').value,trusted:row.dataset.trusted==='true'&&row.dataset.conflict!=='true',recommended:!!candidates[Number(row.dataset.index)].recommended,verified:row.querySelector('[data-verified]').checked}));
+      const items=selected.map(row=>({index:Number(row.dataset.index),id:crypto.randomUUID(),draftId:candidates[Number(row.dataset.index)].draftId||null,source:candidates[Number(row.dataset.index)].source||'',values:collect(row),action:row.querySelector('[data-action]').value,target:row.querySelector('[data-target]').value,trusted:row.dataset.trusted==='true',recommended:!!candidates[Number(row.dataset.index)].recommended,verified:row.querySelector('[data-verified]').checked}));
       const preview=planReviewBatch(data,items);
       const notSelected=[...list.querySelectorAll('.ocr-row')].filter(row=>!row.querySelector('[data-select]').checked);
-      const unselectedSkipped=notSelected.filter(row=>row.dataset.conflict==='true').length;
-      const pending=notSelected.length-unselectedSkipped;
-      confirmAction(`匯入總覽：成功 ${preview.added+preview.merged} 筆，跳過 ${preview.skipped+unselectedSkipped} 筆，暫存待確認 ${preview.drafts} 筆，失敗 ${preview.failed} 筆，未選待處理 ${pending} 筆。草稿不計入花費或攝取，只有本次確認才會寫入。`,()=>{
+      const pending=notSelected.length;
+      const reasons = (result) => result.results.map(entry => {const v=items.find(item=>item.index===entry.index).values;return `第 ${entry.index+1} 筆 ${labels[v.type]||'待分類'} · ${v.date||'日期未確認'} · ${{success:'成功',skipped:'重複跳過',draft:'待確認',failed:'失敗'}[entry.kind]}：${entry.reason}${entry.kind==='skipped'&&entry.recordId?'（既有 ID '+entry.recordId+'）':''}`;}).join('\n');
+      confirmAction(`匯入總覽：成功 ${preview.added+preview.merged} 筆，重複跳過 ${preview.skipped} 筆，暫存待確認 ${preview.drafts} 筆，失敗 ${preview.failed} 筆，未選待處理 ${pending} 筆。草稿不計入花費或攝取，只有本次確認才會寫入。\n${reasons(preview)}`,()=>{
         const result=planReviewBatch(data,items);
         if(result.added||result.merged||result.drafts){save(result.data);imported=true;}
-        d.querySelector('#ocr-result').textContent=`成功 ${result.added+result.merged} 筆，跳過 ${result.skipped+unselectedSkipped} 筆，暫存待確認 ${result.drafts} 筆，失敗 ${result.failed} 筆，待處理 ${pending} 筆。`;
-        for(const entry of result.results){const row=selected.find(r=>Number(r.dataset.index)===entry.index);if(!row)continue;if(entry.kind==='failed'){row.querySelector('.ocr-row-error').textContent='未儲存，請檢查後重試';row.querySelector('.ocr-details').open=true}else row.remove();}
-        list.querySelectorAll('.ocr-row').forEach(row=>{updateConflict(row);const v=collect(row);row.dataset.conflict=String(data.records.some(r=>r.type===v.type&&r.date===v.date));if(row.dataset.conflict==='true'){row.dataset.trusted='false';row.querySelector('[data-select]').checked=false;row.querySelector('.ocr-badge').textContent='可能重複，預設跳過';}});
+        d.querySelector('#ocr-result').textContent=`成功 ${result.added+result.merged} 筆，重複跳過 ${result.skipped} 筆，暫存待確認 ${result.drafts} 筆，失敗 ${result.failed} 筆，待處理 ${pending} 筆。`;
+        const detail=document.createElement('ul');
+        for(const entry of result.results){const li=document.createElement('li');li.textContent=reasons({results:[entry]});detail.append(li);}
+        d.querySelector('#ocr-result').append(detail);
+        for(const entry of result.results){const row=selected.find(r=>Number(r.dataset.index)===entry.index);if(!row)continue;if(entry.kind==='failed'){row.querySelector('.ocr-row-error').textContent=entry.reason;row.querySelector('.ocr-details').open=true}else row.remove();}
+        list.querySelectorAll('.ocr-row').forEach(row=>{updateConflict(row);const v=collect(row);row.dataset.conflict=String(Boolean(findExactCandidate(data,v)));if(row.dataset.conflict==='true'){row.dataset.trusted='false';row.querySelector('[data-select]').checked=false;row.querySelector('.ocr-badge').textContent='內容完全重複，預設不選取';}});
         updateTotals();
       });
+      document.querySelector('#confirm p').style.whiteSpace='pre-line';
     }catch(err){error.textContent='尚未匯入：'+err.message;}
   };
 

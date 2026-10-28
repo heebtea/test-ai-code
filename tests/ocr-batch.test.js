@@ -66,7 +66,7 @@ it("ambiguous meal coffee and spending stay unselected, require explicit status 
   expect(meal.paid).toBe(null);
   expect(meal.status).toBe("未確認");
 });
-it("duplicates skip by default; merge only fills blanks and v3 data stays intact", () => {
+it("different daily metrics require review; merge only fills blanks and v3 data stays intact", () => {
   const old = {
     id: "sleep",
     type: "sleep",
@@ -89,11 +89,9 @@ it("duplicates skip by default; merge only fills blanks and v3 data stays intact
     minutes: "400",
     score: "80",
   };
-  const skipped = planCandidates(initial, [
+  expect(() => planCandidates(initial, [
     { id: "new", values, action: "skip" },
-  ]);
-  expect(skipped.skipped).toBe(1);
-  expect(skipped.data).toEqual(initial);
+  ])).toThrow(/內容不同/);
   const merged = planCandidates(initial, [
     { id: "new", values, action: "merge", target: "sleep" },
   ]);

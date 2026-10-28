@@ -116,7 +116,7 @@ it("preselects supported metrics, leaves uncertain purchases unchecked, supports
   expect(document.querySelector(".water .metric").textContent).toBe("尚無資料");
   expect(document.querySelector(".sleep .metric").textContent).toContain("380");
 });
-it("existing same day defaults to skip and another tab update cannot be overwritten", async () => {
+it("different same-day data stays selected for review and another tab update cannot be overwritten", async () => {
   const r = {
     id: "old",
     type: "sleep",
@@ -136,10 +136,10 @@ it("existing same day defaults to skip and another tab update cannot be overwrit
   const sleep = [...document.querySelectorAll(".ocr-row")].find(
     (x) => x.querySelector("strong").textContent === "睡眠",
   );
-  expect(sleep.querySelector("[data-select]").checked).toBe(false);
-  expect(sleep.dataset.conflict).toBe("true");
+  expect(sleep.querySelector("[data-select]").checked).toBe(true);
+  expect(sleep.dataset.conflict).toBe("false");
   document.querySelector("#ocr-commit").click();
-  expect(document.querySelector("#confirm").textContent).toContain("跳過 1 筆");
+  expect(document.querySelector("#confirm").textContent).toContain("暫存待確認 1 筆");
   const other = upsert(JSON.parse(localStorage.getItem(STORAGE_KEY)), {
     id: "other",
     type: "water",
