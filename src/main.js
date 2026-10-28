@@ -1,6 +1,4 @@
 import "./style.css";
-import { recognizeCard } from "./ocr.js";
-import { planReviewBatch } from "./ocr-review.js";
 import { timeline, drawTemplateJournal, journalSections } from "./journal.js";
 import {
   baseTemplate,
@@ -176,7 +174,7 @@ function render() {
           `<li><button class="timeline-event" data-event="${entry.record.id}"><time>${esc(entry.time)}</time><span><b>${esc(entry.label)}</b><small>${esc(entry.record.name || entry.record.status)}</small></span><img data-photo="${entry.record.id}" alt="事件照片" hidden></button></li>`,
       )
       .join("") || "<li>尚無有時間的紀錄</li>"
-  }</ul><button data-add="event" ${blocked ? "disabled" : ""}>＋ 新增重要事件</button></details>${templateView()}<section class="journal-banner"><div><small>THE DAILY EDIT</small><h2>把今天，收進小誌裡。</h2><p>用已記錄的片段，留下一張屬於今天的直式小誌。</p></div><button id="journal">產生今日小誌</button></section><p class="footer">睡眠以起床日期記錄；活動請記錄不重疊的區段。空白數值代表未知，只有明確輸入 0 才是零。</p></main></div><dialog id="editor" aria-labelledby="dialog-title"></dialog><dialog id="confirm" aria-labelledby="confirm-title"></dialog><dialog id="event-detail"></dialog><dialog id="journal-dialog"></dialog><dialog id="template-editor"></dialog><dialog id="ocr-dialog" aria-labelledby="ocr-title"></dialog>`;
+  }</ul><button data-add="event" ${blocked ? "disabled" : ""}>＋ 新增重要事件</button></details>${templateView()}<section class="journal-banner"><div><small>THE DAILY EDIT</small><h2>把今天，收進小誌裡。</h2><p>用已記錄的片段，留下一張屬於今天的直式小誌。</p></div><button id="journal">產生今日小誌</button></section><p class="footer">睡眠以起床日期記錄；活動請記錄不重疊的區段。空白數值代表未知，只有明確輸入 0 才是零。</p></main></div><dialog id="editor" aria-labelledby="dialog-title"></dialog><dialog id="confirm" aria-labelledby="confirm-title"></dialog><dialog id="event-detail"></dialog><dialog id="journal-dialog"></dialog><dialog id="template-editor"></dialog>`;
   applyTemplateStyles(
     document.querySelector(".template-sheet"),
     selectedTemplate,
@@ -232,8 +230,6 @@ function render() {
   document
     .querySelectorAll("[data-template-event]")
     .forEach((b) => (b.onclick = () => showEvent(b.dataset.templateEvent)));
-  document.querySelector("#ocr-open").onclick = () => openOcr();
-  document.querySelector("#ocr-drafts").onclick = () => openOcr(null,true);
   document.querySelector("#template-new").onclick = () => templateEditor(null);
   document.querySelector("#template-edit").onclick = () =>
     templateEditor(selectedTemplate.id === "default" ? null : selectedTemplate);
@@ -401,7 +397,7 @@ function templateView() {
       return `<details class="template-block ${key === "overview" ? "template-wide" : ""}"><summary><span class="template-label">${esc(selectedTemplate.illustration)} ${sectionNames[key]}</span><span class="template-snapshot">${vals.length ? vals.map((v) => `${esc(v.title)} ${esc(v.value)}`).join(" · ") : "尚無資料"}</span></summary><p>${vals.map((v) => `<span class="template-value"><b>${esc(v.title)}</b> ${esc(v.value)}</span>`).join("") || "尚無資料"}</p><div>${records.map((r) => `<button data-template-edit="${r.id}" ${blocked ? "disabled" : ""}>編輯${esc(names[r.type])}</button>`).join(" ")} ${addTypes.map((t) => `<button data-template-add="${t}" ${blocked ? "disabled" : ""}>＋ ${esc(names[t])}</button>`).join(" ")}</div></details>`;
     })
     .join("");
-  return `<section class="template-panel"><div class="template-controls"><div><small>YOUR JOURNAL</small><h2>我的小誌模板</h2></div><label>選擇模板<select id="template-select"><option value="default">生活小誌</option>${templates.map((t) => `<option value="${esc(t.id)}" ${t.id === selectedTemplate.id ? "selected" : ""}>${esc(t.name)}</option>`).join("")}</select></label><button id="template-new">匯入小誌圖卡</button><button id="ocr-open">辨識圖卡紀錄</button><button id="ocr-drafts">待確認草稿（${data.records.filter(r=>r.type === "draft").length}）</button><button id="template-edit">修改模板</button></div><p class="template-hint">模板使用選取日期的紀錄；圖卡辨識結果須逐筆確認後才匯入。</p><details id="template-view"><summary>展開互動小誌</summary><div class="template-sheet"><header class="template-cover"><small>PROJECT SECOND BRAIN</small><h2>${esc(date)} · 生活小誌</h2><p>${esc(
+  return `<section class="template-panel"><div class="template-controls"><div><small>YOUR JOURNAL</small><h2>我的小誌模板</h2></div><label>選擇模板<select id="template-select"><option value="default">生活小誌</option>${templates.map((t) => `<option value="${esc(t.id)}" ${t.id === selectedTemplate.id ? "selected" : ""}>${esc(t.name)}</option>`).join("")}</select></label><button id="template-new">匯入小誌圖卡</button><button id="template-edit">修改模板</button></div><p class="template-hint">模板使用選取日期的紀錄；參考圖只用來調整模板外觀，不會從圖中擷取生活紀錄。</p><details id="template-view"><summary>展開互動小誌</summary><div class="template-sheet"><header class="template-cover"><small>PROJECT SECOND BRAIN</small><h2>${esc(date)} · 生活小誌</h2><p>${esc(
     journalRows
       .map((r) => r.theme)
       .filter(Boolean)
@@ -431,7 +427,7 @@ function templateEditor(current) {
   let previewURL = null;
   const d = document.querySelector("#template-editor");
   function show() {
-    d.innerHTML = `<h2>${current ? "修改模板" : "匯入小誌圖卡"}</h2><p>圖片在本機擷取色票，版面、字體與插畫請手動選擇。可以另行辨識紀錄，逐筆確認後才匯入；JSON 不含模板及原圖，請另存原檔。</p><label class="template-input">參考圖（PNG、JPG、WebP，最多 10 MB）<input id="template-image" type="file" accept="image/png,image/jpeg,image/webp"></label><img id="reference-preview" class="reference-preview" alt="原圖預覽" hidden><p id="image-info"></p><div class="palette" aria-label="偵測到的主要顏色"></div><button type="button" id="template-ocr">辨識圖卡紀錄</button><form id="template-form"><div class="template-fields"><label>模板名稱<input name="name" maxlength="80" required value="${esc(working.name)}"></label><label>底色<input type="color" name="background" value="${esc(working.background)}"></label><label>標題色<input type="color" name="accent" value="${esc(working.accent)}"></label><label>字體風格<select name="font"><option value="sans" ${working.font === "sans" ? "selected" : ""}>清晰無襯線</option><option value="serif" ${working.font === "serif" ? "selected" : ""}>雜誌襯線</option></select></label><label>卡片欄數<select name="columns"><option value="1" ${working.columns === 1 ? "selected" : ""}>單欄</option><option value="2" ${working.columns === 2 ? "selected" : ""}>雙欄</option></select></label><label>裝飾<select name="illustration">${["✳", "☀", "✦", "○", ""].map((x) => `<option value="${x}" ${working.illustration === x ? "selected" : ""}>${x || "無"}</option>`).join("")}</select></label></div><h3>確認區塊順序與對應</h3><p>依原圖的閱讀順序選擇，每個區塊各選一次。</p><div class="mapping">${working.mapping.map((k, i) => `<label>區塊 ${i + 1}<select name="slot${i}">${sectionKeys.map((x) => `<option value="${x}" ${x === k ? "selected" : ""}>${sectionNames[x]}</option>`).join("")}</select></label>`).join("")}</div><div id="draft-preview" class="draft-preview"></div><p class="error" role="alert"></p><div class="dialog-actions"><button type="button" id="template-restore">還原</button>${current ? '<button type="button" id="template-delete">刪除模板</button>' : ""}<button type="button" id="template-close">取消</button><button type="submit">儲存模板</button></div></form>`;
+    d.innerHTML = `<h2>${current ? "修改模板" : "匯入小誌圖卡"}</h2><p>圖片在本機擷取色票，版面、字體與插畫請手動選擇。不會從圖片辨識或匯入生活紀錄；JSON 不含模板及原圖，請另存原檔。</p><label class="template-input">參考圖（PNG、JPG、WebP，最多 10 MB）<input id="template-image" type="file" accept="image/png,image/jpeg,image/webp"></label><img id="reference-preview" class="reference-preview" alt="原圖預覽" hidden><p id="image-info"></p><div class="palette" aria-label="偵測到的主要顏色"></div><form id="template-form"><div class="template-fields"><label>模板名稱<input name="name" maxlength="80" required value="${esc(working.name)}"></label><label>底色<input type="color" name="background" value="${esc(working.background)}"></label><label>標題色<input type="color" name="accent" value="${esc(working.accent)}"></label><label>字體風格<select name="font"><option value="sans" ${working.font === "sans" ? "selected" : ""}>清晰無襯線</option><option value="serif" ${working.font === "serif" ? "selected" : ""}>雜誌襯線</option></select></label><label>卡片欄數<select name="columns"><option value="1" ${working.columns === 1 ? "selected" : ""}>單欄</option><option value="2" ${working.columns === 2 ? "selected" : ""}>雙欄</option></select></label><label>裝飾<select name="illustration">${["✳", "☀", "✦", "○", ""].map((x) => `<option value="${x}" ${working.illustration === x ? "selected" : ""}>${x || "無"}</option>`).join("")}</select></label></div><h3>確認區塊順序與對應</h3><p>依原圖的閱讀順序選擇，每個區塊各選一次。</p><div class="mapping">${working.mapping.map((k, i) => `<label>區塊 ${i + 1}<select name="slot${i}">${sectionKeys.map((x) => `<option value="${x}" ${x === k ? "selected" : ""}>${sectionNames[x]}</option>`).join("")}</select></label>`).join("")}</div><div id="draft-preview" class="draft-preview"></div><p class="error" role="alert"></p><div class="dialog-actions"><button type="button" id="template-restore">還原</button>${current ? '<button type="button" id="template-delete">刪除模板</button>' : ""}<button type="button" id="template-close">取消</button><button type="submit">儲存模板</button></div></form>`;
     if (working.image) {
       previewURL = URL.createObjectURL(working.image);
       const img = d.querySelector("#reference-preview");
@@ -461,7 +457,6 @@ function templateEditor(current) {
     form.oninput = refresh;
     form.onchange = refresh;
     refresh();
-    d.querySelector("#template-ocr").onclick = () => openOcr(working.image);
     d.querySelector("#template-image").onchange = async (e) => {
       const file = e.target.files[0];
       if (!file) return;
@@ -550,388 +545,6 @@ function templateEditor(current) {
   };
   show();
   d.showModal();
-}
-
-function openOcr(initialFile, showDrafts = false) {
-  const d = document.querySelector("#ocr-dialog");
-  let candidates = showDrafts ? data.records.filter(r=>r.type==='draft').map(r=>({...JSON.parse(r.payload), type:r.classification, originSource:JSON.parse(r.payload).source||'', source:r.source, draftId:r.id, recommended:false, checked:false, reason:'已儲存的待確認草稿'})) : [];
-  let imageUrl = null;
-  let running = false;
-  let imported = false;
-  d.innerHTML = `<h2 id="ocr-title">辨識小誌圖卡</h2><p>繁體中文在此裝置辨識，不上傳圖片。數值、餐飲及付款可能辨識錯誤；可信數據可批次選取；餐飲、付款與不明內容須確認。首次載入辨識模型可能較久。</p><label>選擇 PNG、JPG 或 WebP<input id="ocr-image" type="file" accept="image/png,image/jpeg,image/webp"></label><details class="ocr-original"><summary>查看原圖</summary><img id="ocr-preview" alt="圖卡原圖" class="reference-preview" hidden></details><p id="ocr-progress" role="status"></p><details><summary>查看辨識原文（可能有錯字）</summary><pre id="ocr-raw"></pre></details><div class="ocr-batch-tools"><button id="ocr-select-all" type="button">全選全部</button><button id="ocr-select-trusted" type="button">只選可信項目</button><button id="ocr-clear" type="button">全部取消</button></div><p id="ocr-totals" role="status"></p><div id="ocr-candidates"></div><p id="ocr-result" role="status"></p><button id="ocr-add-manual" type="button">＋ 手動新增候選</button><p class="error" role="alert"></p><div class="dialog-actions"><button id="ocr-cancel" type="button">取消</button><button id="ocr-commit" type="button" ${blocked ? "disabled" : ""}>批次匯入選取項目</button></div>`;
-  const list = d.querySelector("#ocr-candidates"),
-    error = d.querySelector(".error");
-  const labels = {
-    sleep: "睡眠",
-    activity: "活動／步數",
-    sunlight: "日照",
-    meal: "餐點",
-    coffee: "咖啡",
-    water: "飲水",
-    beverage: "飲品（茶等）",
-    spending: "花費",
-    event: "時間軸事件",
-    journal: "小誌文字",
-    unclassified: "待分類",
-  };
-  const fieldLabels = {
-    date: "日期",
-    name: "名稱",
-    minutes: "分鐘",
-    score: "睡眠分數",
-    steps: "步數",
-    volume: "容量 mL",
-    amount: "金額 NT$",
-    time: "事件時間",
-    startTime: "開始時間",
-    endTime: "結束時間",
-    source: "來源",
-    note: "備註",
-    paymentDate: "付款日期",
-    orderDate: "訂購日期",
-    purchaseDate: "購買日期",
-    theme: "每日主題", highlight: "今日亮點", wellbeing: "身體狀況", mood: "心情", todo: "待辦事項",
-  };
-  const typeFields = {
-    sleep: ["minutes", "score"],
-    activity: ["steps", "minutes"],
-    sunlight: ["minutes", "source"],
-    meal: [
-      "name",
-      "amount",
-      "orderDate",
-      "paymentDate",
-      "startTime",
-      "endTime",
-    ],
-    coffee: ["volume", "amount", "purchaseDate", "startTime", "endTime"],
-    water: ["volume"],
-    beverage: ["name", "volume", "amount", "paymentDate", "startTime", "endTime"],
-    spending: ["amount"],
-    event: ["name", "time"],
-    journal: ["theme", "highlight", "wellbeing", "mood", "todo"],
-    unclassified: ["name", "time"],
-  };
-  const typeOptions = Object.keys(typeFields);
-  function collect(row) {
-    const o = {};
-    row
-      .querySelectorAll("[data-field]")
-      .forEach((el) => (o[el.dataset.field] = el.value));
-    return o;
-  }
-  function fieldsHtml(c) {
-    const type = c.type;
-    return (
-      ["date", ...typeFields[type], "note"]
-        .map((k) => {
-          const numeric = [
-            "minutes",
-            "score",
-            "steps",
-            "volume",
-            "amount",
-          ].includes(k);
-          const kind =
-            k === "date" || k.endsWith("Date")
-              ? "date"
-              : k === "time" || k.endsWith("Time")
-                ? "time"
-                : numeric
-                  ? "number"
-                  : "text";
-          return `<label>${fieldLabels[k]}<input data-field="${k}" type="${kind}" ${numeric ? 'min="0" step="' + (k === "amount" ? "0.01" : "1") + '"' : ""} value="${esc(k === "source" ? (c.originSource ?? "") : (c[k] ?? ""))}"></label>`;
-        })
-        .join("") +
-      `<label>狀態（請確認）<select data-field="status"><option value="">請選擇</option>${(statuses[type] || []).map((v) => `<option value="${esc(v)}" ${c.status === v ? "selected" : ""}>${esc(v)}</option>`).join("")}</select></label>${(type === "meal" || type === "beverage") ? `<label>付款狀態<select data-field="paid"><option value="">未確認</option><option value="yes" ${c.paid === "yes" ? "selected" : ""}>已付款</option><option value="no" ${c.paid === "no" ? "selected" : ""}>未付款</option></select></label>` : ""}${type === "coffee" ? `<label>付款方式（請確認）<select data-field="payment"><option value="">請選擇</option><option value="purchase" ${c.payment === "purchase" ? "selected" : ""}>購買</option><option value="voucher" ${c.payment === "voucher" ? "selected" : ""}>預付券</option></select></label><label>實際付款已確認？<select data-field="paidConfirm"><option value="">未確認</option><option value="yes" ${c.paidConfirm === "yes" ? "selected" : ""}>是</option></select></label>` : ""}`
-    );
-  }
-  function updateConflict(row) {
-    const v = collect(row),
-      matches = data.records.filter(
-        (r) => r.type === v.type && r.date === v.date,
-      );
-    const hint = row.querySelector(".ocr-conflict"),
-      target = row.querySelector("[data-target]"),
-      prior = target.value;
-    hint.textContent = matches.length
-      ? `同日同類已有 ${matches.length} 筆，請決定跳過、僅補空白或另存。`
-      : "目前沒有同日同類紀錄；若多個候選相同，仍會依序檢查。";
-    target.innerHTML =
-      '<option value="">選擇既有紀錄</option>' +
-      matches
-        .map(
-          (r) =>
-            `<option value="${esc(r.id)}">${esc((r.name || r.note || r.status).slice(0, 60))} · ${esc(r.id.slice(0, 8))}</option>`,
-        )
-        .join("");
-    if (matches.some((r) => r.id === prior)) target.value = prior;
-  }
-  function refreshRow(row) {
-    const v = collect(row);
-    row.querySelector(".ocr-caption strong").textContent = labels[v.type];
-    row.querySelector(".ocr-caption small").textContent = [
-      v.date || "日期未確認",
-      v.name || "",
-      v.minutes !== undefined && v.minutes !== "" ? `${v.minutes} 分鐘` : "",
-      v.score !== undefined && v.score !== "" ? `分數 ${v.score}` : "",
-      v.steps !== undefined && v.steps !== "" ? `${v.steps} 步` : "",
-      v.volume !== undefined && v.volume !== "" ? `${v.volume} mL` : "",
-      v.amount !== undefined && v.amount !== ""
-        ? `金額 ${v.amount} 待確認`
-        : "",
-      v.status ||
-        (["meal", "coffee", "water", "spending"].includes(v.type)
-          ? "狀態未確認"
-          : ""),
-      v.type === "meal"
-        ? v.paid === "yes"
-          ? "已付款"
-          : v.paid === "no"
-            ? "未付款"
-            : "付款未確認"
-        : "",
-      v.type === "coffee"
-        ? v.payment === "voucher"
-          ? "預付券"
-          : v.payment === "purchase"
-            ? "購買"
-            : "付款方式未確認"
-        : "",
-      v.time || "",
-    ]
-      .filter(Boolean)
-      .join(" · ");
-  }
-  function updateTotals() {
-    const all = [...list.querySelectorAll(".ocr-row")];
-    const selected = all.filter(
-      (r) => r.querySelector("[data-select]").checked,
-    ).length;
-    const skipped = all.filter(
-      (r) =>
-        !r.querySelector("[data-select]").checked &&
-        r.dataset.conflict === "true",
-    ).length;
-    const pending = all.length - selected - skipped;
-    d.querySelector("#ocr-totals").textContent =
-      `共 ${all.length} 筆 · 已選 ${selected} · 預設跳過 ${skipped} · 待處理 ${pending}`;
-  }
-  function draw() {
-    const short = (c) =>
-      [
-        c.date || "日期未確認",
-        c.name || "",
-        c.minutes != null ? `${c.minutes} 分鐘` : "",
-        c.score != null ? `分數 ${c.score}` : "",
-        c.steps != null ? `${c.steps} 步` : "",
-        c.volume != null ? `${c.volume} mL` : "",
-        c.amount != null ? `金額 ${c.amount} 待確認` : "",
-        c.time || "",
-        c.status ||
-          (c.type === "meal" ||
-          c.type === "coffee" ||
-          c.type === "water" ||
-          c.type === "spending"
-            ? "狀態未確認"
-            : ""),
-        c.type === "meal"
-          ? c.paid === "yes"
-            ? "已付款"
-            : c.paid === "no"
-              ? "未付款"
-              : "付款未確認"
-          : "",
-        c.type === "coffee"
-          ? c.payment === "voucher"
-            ? "預付券"
-            : c.payment === "purchase"
-              ? "購買"
-              : "付款方式未確認"
-          : "",
-      ]
-        .filter(Boolean)
-        .join(" · ");
-    list.innerHTML = typeOptions
-      .map((section) => {
-        const entries = candidates
-          .map((c, i) => ({ c, i }))
-          .filter(({ c }) => c.type === section);
-        if (!entries.length) return "";
-        const titles = labels;
-        return (
-          `<h3 class="ocr-group">${titles[section]} · ${entries.length}</h3>` +
-          entries
-            .map(
-              ({ c, i }) =>
-                `<section class="ocr-row" data-index="${i}" data-trusted="${!!c.recommended}" data-conflict="${!!c.duplicate}"><div class="ocr-row-head"><label><input type="checkbox" data-select ${c.checked ? "checked" : ""}> <span class="ocr-caption"><strong>${labels[c.type]}</strong><small>${esc(short(c))}</small></span></label><span class="ocr-badge">${esc(c.duplicate ? "可能重複" : c.reason || "待確認")}</span></div><details class="ocr-details"><summary>查看或修改</summary><label>紀錄類型<select data-field="type">${typeOptions.map((t) => `<option value="${t}" ${c.type === t ? "selected" : ""}>${labels[t]}</option>`).join("")}</select></label><p>原文線索：${esc(c.source || "手動新增")}</p><div class="ocr-fields">${fieldsHtml(c)}</div><p class="ocr-conflict"></p><label class="ocr-verified"><input type="checkbox" data-verified> 我已逐項核對，可寫入正式紀錄（資訊不完整時仍存草稿）</label><label>衝突處理<select data-action><option value="skip">有同日同類就跳過</option><option value="merge">只補既有紀錄的空白欄位</option><option value="add">仍另存一筆（可能重複）</option></select></label><label>合併目標<select data-target><option value="">選擇既有紀錄</option></select></label>${c.draftId ? `<button type="button" data-delete-draft="${esc(c.draftId)}">刪除此草稿</button>` : ""}<p class="ocr-row-error" role="alert"></p></details></section>`,
-            )
-            .join("")
-        );
-      })
-      .join("");
-    list.querySelectorAll(".ocr-row").forEach((row) => {
-      updateConflict(row);
-      row.querySelector('[data-delete-draft]')?.addEventListener('click',()=>confirmAction('刪除此草稿？',()=>{save(remove(data,row.querySelector('[data-delete-draft]').dataset.deleteDraft));imported=true;row.remove();updateTotals();}));
-      row.querySelector("[data-field=type]").onchange = () => {
-        const old = collect(row);
-        const i = Number(row.dataset.index);
-        candidates[i] = { ...candidates[i], ...old, recommended: false };
-        row.querySelector(".ocr-fields").innerHTML = fieldsHtml(candidates[i]);
-        updateConflict(row);
-        refreshRow(row);
-      };
-      row.addEventListener("input", (e) => {
-        if (
-          e.target.matches("[data-field]") &&
-          row.dataset.trusted === "true"
-        ) {
-          row.dataset.trusted = "false";
-          row.querySelector("[data-select]").checked = false;
-          row.querySelector(".ocr-badge").textContent = "已修改，請確認";
-        }
-        if (e.target.matches("[data-field]")) refreshRow(row);
-        updateTotals();
-      });
-      row.addEventListener("change", (e) => {
-        if (e.target.matches("[data-field=date], [data-field=type]")) {
-          updateConflict(row);
-          const v = collect(row);
-          row.dataset.conflict = String(
-            data.records.some((r) => r.type === v.type && r.date === v.date),
-          );
-        }
-        if (e.target.matches("[data-field]")) refreshRow(row);
-        updateTotals();
-      });
-    });
-    updateTotals();
-  }
-
-  async function run(file) {
-    if (!file || running) return;
-    running = true;
-    candidates = [];
-    draw();
-    error.textContent = "";
-    d.querySelector("#ocr-progress").textContent = "準備本機辨識…";
-    try {
-      if (imageUrl) URL.revokeObjectURL(imageUrl);
-      imageUrl = URL.createObjectURL(file);
-      const image = d.querySelector("#ocr-preview");
-      image.src = imageUrl;
-      image.hidden = false;
-      const result = await recognizeCard(file, (status, p) => {
-        if (d.isConnected)
-          d.querySelector("#ocr-progress").textContent =
-            `${status} ${Math.round((p || 0) * 100)}%`;
-      });
-      if (!d.isConnected) return;
-      const seen = new Set();
-      candidates = result.candidates.map((c) => {
-        const key = c.type + ":" + c.date;
-        const exists = data.records.some(
-          (r) => r.type === c.type && r.date === c.date,
-        );
-        const duplicate = exists || (c.recommended && seen.has(key));
-        if (c.recommended) seen.add(key);
-        return {
-          ...c,
-          duplicate,
-          checked: Boolean(c.recommended && !duplicate),
-        };
-      });
-      d.querySelector("#ocr-raw").textContent = [
-        result.raw.whole,
-        ...Object.entries(result.raw)
-          .filter(([k]) => k !== "whole" && k !== "confidences" && k !== "regions")
-          .map(([k, v]) => `[${k}] ${v}`),
-        ...Object.entries(result.raw.regions || {}).map(([k,v])=>`[${k}] ${v}`),
-      ].join("\n");
-      d.querySelector("#ocr-progress").textContent =
-        `辨識完成：${candidates.length} 筆候選。可信項目已預選，請確認摘要；其他項目可展開修改。`;
-      draw();
-    } catch (e) {
-      if (d.isConnected) {
-        error.textContent =
-          "無法完成辨識：" + e.message + "。你仍可手動新增候選。";
-        d.querySelector("#ocr-progress").textContent = "";
-      }
-    } finally {
-      running = false;
-    }
-  }
-  d.querySelector("#ocr-image").onchange = (e) => run(e.target.files[0]);
-  d.querySelector("#ocr-add-manual").onclick = () => {
-    const oldRows = [...list.querySelectorAll(".ocr-row")];
-    const state = oldRows.map((row) => ({
-      checked: row.querySelector("[data-select]").checked,
-      verified: row.querySelector("[data-verified]").checked,
-      trusted: row.dataset.trusted,
-      action: row.querySelector("[data-action]").value,
-      target: row.querySelector("[data-target]").value,
-    }));
-    const current = oldRows.map((row) => ({
-      ...candidates[Number(row.dataset.index)],
-      ...collect(row),
-      checked: row.querySelector("[data-select]").checked,
-    }));
-    candidates = [...current, { type: "event", date: "", source: "手動新增" }];
-    draw();
-    list.querySelectorAll(".ocr-row").forEach((row) => {
-      const i = Number(row.dataset.index);
-      if (state[i]) {
-        row.querySelector("[data-verified]").checked = state[i].verified;
-        row.dataset.trusted = state[i].trusted;
-        row.querySelector("[data-select]").checked = state[i].checked;
-        row.querySelector("[data-action]").value = state[i].action;
-        row.querySelector("[data-target]").value = state[i].target;
-      }
-    });
-  };
-  d.querySelector("#ocr-select-all").onclick = () => {list.querySelectorAll("[data-select]").forEach(box=>box.checked=true);updateTotals();};
-  d.querySelector("#ocr-select-trusted").onclick = () => {
-    list.querySelectorAll(".ocr-row").forEach((row) => {
-      row.querySelector("[data-select]").checked =
-        row.dataset.trusted === "true" && row.dataset.conflict !== "true";
-    });
-    updateTotals();
-  };
-  d.querySelector("#ocr-clear").onclick = () => {
-    list
-      .querySelectorAll("[data-select]")
-      .forEach((box) => (box.checked = false));
-    updateTotals();
-  };
-  d.querySelector("#ocr-cancel").onclick = () => d.close();
-  d.querySelector("#ocr-commit").onclick = () => {
-    try {
-      if(running)throw Error('請等辨識完成');
-      const selected=[...list.querySelectorAll('.ocr-row')].filter(r=>r.querySelector('[data-select]').checked);
-      if(!selected.length)throw Error('請先選取候選項目');
-      const items=selected.map(row=>({index:Number(row.dataset.index),id:crypto.randomUUID(),draftId:candidates[Number(row.dataset.index)].draftId||null,source:candidates[Number(row.dataset.index)].source||'',values:collect(row),action:row.querySelector('[data-action]').value,target:row.querySelector('[data-target]').value,trusted:row.dataset.trusted==='true'&&row.dataset.conflict!=='true',recommended:!!candidates[Number(row.dataset.index)].recommended,verified:row.querySelector('[data-verified]').checked}));
-      const preview=planReviewBatch(data,items);
-      const notSelected=[...list.querySelectorAll('.ocr-row')].filter(row=>!row.querySelector('[data-select]').checked);
-      const unselectedSkipped=notSelected.filter(row=>row.dataset.conflict==='true').length;
-      const pending=notSelected.length-unselectedSkipped;
-      confirmAction(`匯入總覽：成功 ${preview.added+preview.merged} 筆，跳過 ${preview.skipped+unselectedSkipped} 筆，暫存待確認 ${preview.drafts} 筆，失敗 ${preview.failed} 筆，未選待處理 ${pending} 筆。草稿不計入花費或攝取，只有本次確認才會寫入。`,()=>{
-        const result=planReviewBatch(data,items);
-        if(result.added||result.merged||result.drafts){save(result.data);imported=true;}
-        d.querySelector('#ocr-result').textContent=`成功 ${result.added+result.merged} 筆，跳過 ${result.skipped+unselectedSkipped} 筆，暫存待確認 ${result.drafts} 筆，失敗 ${result.failed} 筆，待處理 ${pending} 筆。`;
-        for(const entry of result.results){const row=selected.find(r=>Number(r.dataset.index)===entry.index);if(!row)continue;if(entry.kind==='failed'){row.querySelector('.ocr-row-error').textContent='未儲存，請檢查後重試';row.querySelector('.ocr-details').open=true}else row.remove();}
-        list.querySelectorAll('.ocr-row').forEach(row=>{updateConflict(row);const v=collect(row);row.dataset.conflict=String(data.records.some(r=>r.type===v.type&&r.date===v.date));if(row.dataset.conflict==='true'){row.dataset.trusted='false';row.querySelector('[data-select]').checked=false;row.querySelector('.ocr-badge').textContent='可能重複，預設跳過';}});
-        updateTotals();
-      });
-    }catch(err){error.textContent='尚未匯入：'+err.message;}
-  };
-
-  d.onclose = () => {
-    if (imageUrl) URL.revokeObjectURL(imageUrl);
-    if (imported) render();
-  };
-  d.showModal();
-  if (showDrafts) draw();
-  if (initialFile) run(initialFile);
 }
 
 function showJournal() {

@@ -63,3 +63,14 @@ it("v2 and v3 import remains exact and v4 backup round trips without duplication
   expect(parseBackup(JSON.stringify(d))).toEqual(d);
   expect(journalSections({ version: 4, records: [] }, day)).toEqual([]);
 });
+
+it("legacy OCR drafts remain readable but are excluded from daily statistics", () => {
+  const draft = {
+    id: "old-ocr-draft", date: "", type: "draft", status: "待確認", note: "", time: "",
+    classification: "unclassified", source: "舊圖卡片段", payload: JSON.stringify({ source: "待確認文字" }),
+  };
+  const backup = { version: 6, records: [draft] };
+  expect(parseBackup(JSON.stringify(backup))).toEqual(backup);
+  expect(merge(empty(), backup).data.records).toEqual([draft]);
+  expect(journalSections(backup, day)).toEqual([]);
+});

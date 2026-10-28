@@ -48,6 +48,7 @@ const server = spawn(
         let errs = [];
         page.on("pageerror", (e) => errs.push(e.message));
         await page.goto("http://127.0.0.1:4173/test-ai-code/");
+        assert.equal(await page.locator("#ocr-open, #ocr-drafts, #ocr-dialog").count(), 0, "OCR must not appear in the application");
         const date = await page.locator("#date").inputValue();
         const v2 = {
           version: 2,
