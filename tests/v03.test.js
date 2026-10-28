@@ -40,7 +40,7 @@ it("v0.2 storage and JSON stay intact until explicit save; conflicts preserve ol
   expect(localStorage.getItem(m.STORAGE_KEY)).toBe(raw);
   const next = m.upsert(m.loadRecords(localStorage), meal());
   m.persist(localStorage, next);
-  expect(next.version).toBe(3);
+  expect(next.version).toBe(5);
   expect(next.records[0]).toEqual(old.records[0]);
   const conflict = {
     version: 2,
