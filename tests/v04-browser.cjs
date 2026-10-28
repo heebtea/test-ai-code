@@ -50,6 +50,14 @@ const server = spawn(
         await page.goto("http://127.0.0.1:4173/test-ai-code/");
         assert.equal(await page.locator("#ocr-open, #ocr-drafts, #ocr-dialog").count(), 0, "OCR must not appear in the application");
         const date = await page.locator("#date").inputValue();
+        await page.locator(".sleep .card-toggle").click();
+        assert.equal(await page.locator("#sleep-dialog").isVisible(), true, "sleep detail should open");
+        assert.match(await page.locator("#sleep-dialog").innerText(), /沒有睡眠紀錄/);
+        await page.locator("#sleep-dialog .sleep-tab").nth(1).click();
+        assert.equal(await page.locator("#sleep-dialog .sleep-trend-bars").count(), 1);
+        await page.locator("#sleep-dialog .sleep-dialog-close").click();
+        assert.equal(await page.locator("#sleep-dialog").isVisible(), false);
+
         const v2 = {
           version: 2,
           records: [
