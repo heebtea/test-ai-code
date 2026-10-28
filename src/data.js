@@ -4,6 +4,7 @@ export const types = [
   "sleep",
   "coffee",
   "water",
+  "beverage",
   "activity",
   "sunlight",
   "meal",
@@ -46,7 +47,7 @@ export const fields = {
 const statuses = {
   sleep: ["已完成"],
   coffee: ["已購買", "已兌換", "飲用中", "已飲用"],
-  water: ["已飲用"],
+  water: ["已飲用", "飲用中"],
   activity: ["未完成", "已完成"],
   spending: ["未付款", "已付款"],
   meal: ["未確認", "部分", "吃完"],
@@ -71,6 +72,7 @@ export function validateRecord(r) {
     ...(r.type === "coffee" ? ["payment"] : []),
     ...(r.type === "coffee" ? ["purchaseDate", "startTime", "endTime"] : []),
     ...(r.type === "event" ? ["name"] : []),
+    ...(r.type === "water" ? ["capacity", "startTime", "endTime"] : []),
     ...(r.type === "draft" ? ["classification", "payload", "source"] : []),
     ...(r.type === "beverage" ? ["name", "paid", "paymentDate", "startTime", "endTime"] : []),
     ...(r.type === "journal"
@@ -128,6 +130,11 @@ export function validateRecord(r) {
       (r.startTime && r.endTime && r.endTime < r.startTime))
   )
     throw Error("咖啡時間無效或結束早於開始");
+  if (r.type === "water") {
+    if (r.capacity !== undefined && r.capacity !== null && (!Number.isInteger(r.capacity) || r.capacity < 0 || r.capacity > 100000)) throw Error("裝水容量無效");
+    if ((r.startTime !== undefined && !timeValid(r.startTime)) || (r.endTime !== undefined && !timeValid(r.endTime)) || (r.startTime && r.endTime && r.endTime < r.startTime)) throw Error("飲水時間無效");
+    if (r.status === "飲用中" && r.volume !== null) throw Error("飲用中請只填裝水容量；已喝水量待喝完再填");
+  }
   if (r.type === "beverage") {
     if (typeof r.name !== 'string' || !r.name.trim() || r.name.length>100 || ![true,false,null].includes(r.paid) || !(r.paymentDate===null || validDate(r.paymentDate)) || !timeValid(r.startTime) || !timeValid(r.endTime)) throw Error('飲品名稱、付款或時間格式無效');
     if(r.paid !== true && r.paymentDate !== null)throw Error('未付款或未確認付款時，付款日期請留空');
@@ -300,4 +307,24 @@ export function expenses(data, date) {
       (r.type === "meal" && r.paid === true && r.paymentDate === date) ||
       (r.type === "beverage" && r.paid === true && r.paymentDate === date),
   );
+}
+
+/** Count only confirmed consumed liquids; the same record is counted once. */
+export function liquidIntake(data, date) {
+  const categories = ["water", "coffee", "beverage"];
+  const relevant = data.records.filter(
+    (r) => r.date === date && categories.includes(r.type),
+  );
+  const confirmed = relevant.filter((r) => r.status === "已飲用");
+  const breakdown = Object.fromEntries(
+    categories.map((type) => [
+      type,
+      sum(confirmed.filter((r) => r.type === type), "volume"),
+    ]),
+  );
+  return {
+    ...sum(confirmed, "volume"),
+    breakdown,
+    pending: relevant.length - confirmed.length,
+  };
 }
