@@ -1,4 +1,5 @@
 import "./style.css";
+import { openAiShare } from "./ai-share.js";
 import { openSleepDetail } from "./sleep-detail.js";
 import { timeline, drawTemplateJournal, journalSections } from "./journal.js";
 import {
@@ -140,7 +141,7 @@ function render() {
   clearPhotoUrls();
   document.documentElement.dataset.theme = theme;
   const liquids = liquidIntake(data, date);
-  app.innerHTML = `<div class="shell"><header class="topbar"><div class="brand">✳ SECOND BRAIN LITE v0.4</div><button id="theme" class="theme-toggle">${theme === "dark" ? "淺色" : "深色"}模式</button></header><main><div class="intro"><div><h1>Project Second Brain</h1><p>生活小誌 · 留下今天的一點線索。</p></div></div><div class="notice">紀錄與照片只存於此瀏覽器，不上傳或同步。JSON 不含照片與模板參考圖，請另外保留原檔。</div><p id="message" role="status">${esc(message)}</p><div class="toolbar"><button id="export">匯出 JSON 備份</button><label class="file-button">匯入 JSON 備份<input id="import" type="file" accept="application/json,.json" ${blocked ? "disabled" : ""}></label>${blocked ? '<button id="raw">匯出原始儲存內容</button>' : ""}</div><div class="section-heading"><h2>每日總覽</h2><div class="date-nav"><button id="prev" aria-label="前一天">‹</button><input id="date" type="date" min="1900-01-01" max="2199-12-31" value="${date}" aria-label="選擇日期"><button id="next" aria-label="後一天">›</button></div></div><div class="dashboard"><section class="card hydration"><div class="card-head"><h2>今日已飲用總量</h2></div><button class="card-toggle" aria-expanded="false"><span class="metric">${fmt(liquids.value, "mL 已飲用")}${liquids.unknown ? `（${liquids.unknown} 筆容量未知）` : ""}</span><span class="card-cue">查看白開水、咖啡及其他飲品明細 ↗</span></button><details class="record-details"><summary>分類明細</summary><p>白開水：${fmt(liquids.breakdown.water.value, "mL")} · 咖啡：${fmt(liquids.breakdown.coffee.value, "mL")} · 其他飲品：${fmt(liquids.breakdown.beverage.value, "mL")}</p><p>${liquids.pending} 筆飲用中／未確認，未計入總量；已飲用但容量未知者也不推算。每筆紀錄只計一次。</p></details></section>${types
+  app.innerHTML = `<div class="shell"><header class="topbar"><div class="brand">✳ SECOND BRAIN LITE v0.4</div><button id="theme" class="theme-toggle">${theme === "dark" ? "淺色" : "深色"}模式</button></header><main><div class="intro"><div><h1>Project Second Brain</h1><p>生活小誌 · 留下今天的一點線索。</p></div></div><div class="notice">紀錄與照片只存於此瀏覽器，不上傳或同步。JSON 不含照片與模板參考圖，請另外保留原檔。</div><p id="message" role="status">${esc(message)}</p><div class="toolbar"><button id="export">匯出 JSON 備份</button><button type="button" id="ai-share" ${blocked ? "disabled" : ""}>分享今日資料給 AI</button><label class="file-button">匯入 JSON 備份<input id="import" type="file" accept="application/json,.json" ${blocked ? "disabled" : ""}></label>${blocked ? '<button id="raw">匯出原始儲存內容</button>' : ""}</div><div class="section-heading"><h2>每日總覽</h2><div class="date-nav"><button id="prev" aria-label="前一天">‹</button><input id="date" type="date" min="1900-01-01" max="2199-12-31" value="${date}" aria-label="選擇日期"><button id="next" aria-label="後一天">›</button></div></div><div class="dashboard"><section class="card hydration"><div class="card-head"><h2>今日已飲用總量</h2></div><button class="card-toggle" aria-expanded="false"><span class="metric">${fmt(liquids.value, "mL 已飲用")}${liquids.unknown ? `（${liquids.unknown} 筆容量未知）` : ""}</span><span class="card-cue">查看白開水、咖啡及其他飲品明細 ↗</span></button><details class="record-details"><summary>分類明細</summary><p>白開水：${fmt(liquids.breakdown.water.value, "mL")} · 咖啡：${fmt(liquids.breakdown.coffee.value, "mL")} · 其他飲品：${fmt(liquids.breakdown.beverage.value, "mL")}</p><p>${liquids.pending} 筆飲用中／未確認，未計入總量；已飲用但容量未知者也不推算。每筆紀錄只計一次。</p></details></section>${types
     .filter((type) => type !== "event" && type !== "journal")
     .map((type) => {
       const rs = rows(data, date, type);
@@ -309,6 +310,7 @@ function render() {
             });
         })),
   );
+  document.querySelector("#ai-share").onclick = () => openAiShare(data, date);
   document.querySelector("#export").onclick = () =>
     download(JSON.stringify(data, null, 2), "second-brain-backup.json");
   document.querySelector("#raw")?.addEventListener("click", () => {
