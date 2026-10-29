@@ -819,3 +819,73 @@ dialog p {
   .sleep-trend-bars { gap: 3px; }
   .sleep-trend-column small { font-size: 9px; }
 }
+
+
+/* Explicit, read-only AI snapshot sharing (no network calls). */
+.ai-share-dialog {
+  width: min(660px, calc(100vw - 24px));
+  max-height: min(90dvh, 850px);
+  padding: 22px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: var(--surface);
+  color: var(--text);
+  overflow: auto;
+}
+.ai-share-dialog::backdrop { background: rgba(0,0,0,.6); }
+.ai-share-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.ai-share-head h2 { margin: 0; font-size: 21px; }
+.ai-share-close { font-size: 25px; padding: 4px 12px; }
+.ai-share-dialog p { line-height: 1.65; }
+.ai-share-types {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 8px;
+  margin: 14px 0;
+}
+.ai-share-option {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  cursor: pointer;
+}
+.ai-share-option input { min-width: 18px; min-height: 18px; accent-color: var(--accent); }
+.ai-share-warning {
+  border-left: 4px solid var(--accent);
+  padding: 10px 12px;
+  background: var(--page);
+  font-size: 14px;
+}
+.ai-share-counter,
+.ai-share-footnote { color: var(--muted); font-size: 13px; }
+.ai-share-preview-label { display: block; margin-bottom: 6px; font-weight: 650; }
+#ai-share-preview {
+  display: block;
+  width: 100%;
+  min-height: 160px;
+  max-height: 240px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--page);
+  color: var(--text);
+  font: 12px/1.55 ui-monospace, SFMono-Regular, monospace;
+}
+.ai-share-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0; }
+.ai-share-actions button:first-child {
+  background: var(--accent);
+  color: var(--surface);
+}
+.ai-share-status { min-height: 1.5em; color: var(--accent); font-size: 13px; }
+@media (max-width: 600px) {
+  .ai-share-dialog { padding: 16px; }
+  .ai-share-actions button { flex: 1 1 100%; }
+}
