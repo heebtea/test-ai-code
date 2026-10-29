@@ -1,3 +1,4 @@
+import { assertWritable } from "./storage-guard.js";
 export const STORAGE_KEY = "second-brain-lite-v2";
 export const THEME_KEY = "second-brain-theme";
 export const types = [
@@ -63,6 +64,7 @@ export function validateRecord(r) {
     throw Error("紀錄格式錯誤");
   const allowed = [
     "id",
+    "provenance", "updatedAt", "quantity", "consumedQuantity", "remainingQuantity", "familyQuantity", "unit", "transactionKind",
     "date",
     "type",
     "status",
@@ -100,6 +102,13 @@ export function validateRecord(r) {
     (r.time !== "" && !/^([01]\d|2[0-3]):[0-5]\d$/.test(r.time))
   )
     throw Error("文字或時間格式無效");
+  for (const key of ['quantity','consumedQuantity','remainingQuantity','familyQuantity']) {
+    if (r[key] !== undefined && r[key] !== null && (typeof r[key] !== 'number' || !Number.isFinite(r[key]) || r[key] < 0 || r[key] > 1000000)) throw Error('數量無效：' + key);
+  }
+  if (r.quantity != null && [r.consumedQuantity,r.remainingQuantity,r.familyQuantity].every(v => v != null) && r.consumedQuantity + r.remainingQuantity + r.familyQuantity > r.quantity + 0.000001) throw Error('本人、家人及剩餘量合計超過購買量');
+  for (const [key, max] of [['provenance',500],['unit',20]]) if (r[key] !== undefined && (typeof r[key] !== 'string' || r[key].length > max)) throw Error('來源或數量單位無效');
+  if (r.updatedAt !== undefined && (typeof r.updatedAt !== 'string' || !/^\d{4}-\d{2}-\d{2}T.*Z$/.test(r.updatedAt) || !Number.isFinite(Date.parse(r.updatedAt)))) throw Error('最後修改時間無效');
+  if (r.transactionKind !== undefined && (r.type !== 'spending' || !['purchase','refund','reimbursement'].includes(r.transactionKind))) throw Error('交易種類無效');
   if (r.type === "draft") {
     if (typeof r.classification !== "string" || !["sleep","activity","sunlight","meal","coffee","water","spending","event","journal","beverage","unclassified"].includes(r.classification) || typeof r.payload !== "string" || r.payload.length > 10000 || typeof r.source !== "string" || r.source.length > 500) throw Error("草稿格式無效");
     try { const p = JSON.parse(r.payload); if (!p || typeof p !== "object" || Array.isArray(p)) throw Error(); } catch { throw Error("草稿內容無效"); }
@@ -231,12 +240,12 @@ export function validateRecord(r) {
 export function validate(data) {
   if (
     !data ||
-    ![2, 3, 4, 5, 6].includes(data.version) ||
+    ![2, 3, 4, 5, 6, 7].includes(data.version) ||
     !Array.isArray(data.records) ||
     Object.keys(data).some((k) => !["version", "records"].includes(k)) ||
     data.records.length > 10000
   )
-    throw Error("僅接受 v2 / v3 / v4 / v5 / v6 備份（最多 10000 筆）");
+    throw Error("僅接受 v2 / v3 / v4 / v5 / v6 / v7 備份（最多 10000 筆）");
   const ids = new Set();
   for (const r of data.records) {
     if (data.version === 2 && ["meal", "sunlight"].includes(r.type))
@@ -251,6 +260,7 @@ export function validate(data) {
     if (data.version < 5 && r.type === "journal")
       throw Error("小誌內容請使用 v5 備份");
     if (data.version < 6 && ["draft", "beverage"].includes(r.type)) throw Error("草稿請使用 v6 備份");
+    if (data.version < 7 && ["provenance","updatedAt","quantity","consumedQuantity","remainingQuantity","familyQuantity","unit","transactionKind"].some(k => r[k] !== undefined)) throw Error("來源、數量與交易種類請使用 v7 備份");
     validateRecord(r);
     if (ids.has(r.id)) throw Error("備份含重複 ID");
     ids.add(r.id);
@@ -273,7 +283,7 @@ export function upsert(data, r) {
   if (old && old.type !== r.type) throw Error("不可變更既有 ID 的類別");
   return validate({
     ...data,
-    version: data.version === 6 || ["draft", "beverage"].includes(r.type) ? 6 : 5,
+    version: data.version === 7 || ["provenance","updatedAt","quantity","consumedQuantity","remainingQuantity","familyQuantity","unit","transactionKind"].some(k => r[k] !== undefined) ? 7 : data.version === 6 || ["draft", "beverage"].includes(r.type) ? 6 : 5,
     records: [...data.records.filter((x) => x.id !== r.id), r],
   });
 }
@@ -296,13 +306,14 @@ export function merge(data, incoming) {
     )
       conflicts++;
   }
-  return { data: validate({ version: data.version === 6 || incoming.version === 6 ? 6 : 5, records }), added, conflicts };
+  return { data: validate({ version: Math.max(5, data.version, incoming.version), records }), added, conflicts };
 }
 export function loadRecords(storage) {
   const s = storage.getItem(STORAGE_KEY);
   return s === null ? empty() : parseBackup(s);
 }
 export function persist(storage, data) {
+  assertWritable(storage);
   const value = JSON.stringify(validate(data));
   storage.setItem(STORAGE_KEY, value);
 }
@@ -320,7 +331,7 @@ export function sum(rs, key) {
     unknown: rs.length - known.length,
   };
 }
-export function expenses(data, date) {
+export function transactions(data, date) {
   return data.records.filter(
     (r) =>
       (r.type === "spending" && r.date === date && r.status === "已付款") ||
@@ -350,4 +361,15 @@ export function liquidIntake(data, date) {
     breakdown,
     pending: relevant.length - confirmed.length,
   };
+}
+
+export function expenses(data, date) {
+  return transactions(data,date).filter(r => !r.transactionKind || r.transactionKind === 'purchase');
+}
+export function cashflow(data, date) {
+  const all = transactions(data,date);
+  const groups = Object.fromEntries(['purchase','refund','reimbursement'].map(kind => [kind, all.filter(r => (r.transactionKind || 'purchase') === kind)]));
+  const totals = Object.fromEntries(Object.entries(groups).map(([k,rs]) => [k,sum(rs,'amount')]));
+  const known = all.some(r => r.amount !== null);
+  return { groups, totals, knownNet: known ? Math.round(((totals.purchase.value || 0) - (totals.refund.value || 0) - (totals.reimbursement.value || 0))*100)/100 : null, unknown: all.filter(r => r.amount === null).length };
 }
