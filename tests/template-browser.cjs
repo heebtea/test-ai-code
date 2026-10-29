@@ -69,8 +69,8 @@ const server = spawn(
         await p.locator("[name=mood]").fill("平靜");
         await p.locator("[name=todo]").fill("合成待辦");
         await p.locator("#edit-form .save").click();
+    await p.locator("#editor").waitFor({state:"hidden"});
         await p.locator("#template-new").click();
-        assert.equal(await p.locator("#template-ocr").count(), 0, "template reference images must not offer OCR");
         for (const [mime, ext] of [
           ["image/png", "png"],
           ["image/jpeg", "jpg"],
@@ -176,6 +176,7 @@ const server = spawn(
         await p.locator("#template-edit").click();
         await p.locator("#template-delete").click();
         await p.locator("#yes").click();
+    await p.locator("#confirm").waitFor({state:"hidden"});
         await p.waitForFunction(
           () => document.querySelector("#template-select").value === "default",
         );

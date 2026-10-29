@@ -57,17 +57,19 @@ process.on("exit", () => server.kill());
     await page.locator("[data-add=water]").click();
     await page.locator("[name=volume]").fill("321");
     await page.locator("#edit-form .save").click();
+    await page.locator("#editor").waitFor({state:"hidden"});
     await page.locator(".water summary").click();
     await page.locator(".water [data-edit]").click();
     await page.locator("[name=volume]").fill("456");
     await page.locator("#edit-form .save").click();
+    await page.locator("#editor").waitFor({state:"hidden"});
     assert.match(await page.locator(".water .metric").innerText(), /456/);
     await page.reload();
     assert.match(await page.locator(".water .metric").innerText(), /456/);
     await page.locator("#prev").click();
     assert.equal(await page.locator(".water .metric").innerText(), "尚無資料");
     await page.locator("#next").click();
-    await page.locator("#theme").click();
+    { const prior = await page.locator("html").getAttribute("data-theme"); await page.locator("#theme").click(); await page.waitForFunction(p => document.documentElement.dataset.theme !== p, prior); }
     assert.equal(await page.locator("html").getAttribute("data-theme"), "dark");
     await page.reload();
     assert.equal(await page.locator("html").getAttribute("data-theme"), "dark");
@@ -76,6 +78,7 @@ process.on("exit", () => server.kill());
     await page.locator("[name=status]").selectOption("飲用中");
     await page.locator("[name=volume]").fill("123");
     await page.locator("#edit-form .save").click();
+    await page.locator("#editor").waitFor({state:"hidden"});
     assert.equal(await page.locator(".coffee .metric").innerText(), "尚無資料");
     assert.equal(
       await page.locator(".spending .metric").innerText(),
@@ -94,6 +97,7 @@ process.on("exit", () => server.kill());
     await page.locator(".water details").evaluate((e) => (e.open = true));
     await page.locator(".water [data-delete]").click();
     await page.locator("#yes").click();
+    await page.locator("#confirm").waitFor({state:"hidden"});
     assert.equal(await page.locator(".water .metric").innerText(), "尚無資料");
     await page.locator("#import").setInputFiles({
       name: "backup.json",
@@ -109,6 +113,7 @@ process.on("exit", () => server.kill());
       buffer: backup,
     });
     await page.locator("#yes").click();
+    await page.locator("#confirm").waitFor({state:"hidden"});
     assert.match(await page.locator(".water .metric").innerText(), /456/);
     await page.locator("#import").setInputFiles({
       name: "backup.json",
@@ -116,6 +121,7 @@ process.on("exit", () => server.kill());
       buffer: backup,
     });
     await page.locator("#yes").click();
+    await page.locator("#confirm").waitFor({state:"hidden"});
     assert.equal(
       await page.evaluate(
         () =>
@@ -140,7 +146,7 @@ process.on("exit", () => server.kill());
       ),
       2,
     );
-    await page.locator("#theme").click();
+    { const prior = await page.locator("html").getAttribute("data-theme"); await page.locator("#theme").click(); await page.waitForFunction(p => document.documentElement.dataset.theme !== p, prior); }
     assert.equal(errors.length, 0, errors.join("\n"));
     assert(requests.every((u) => u.startsWith("http://127.0.0.1:4173/")));
     console.log(
@@ -169,6 +175,7 @@ process.on("exit", () => server.kill());
     buffer: Buffer.from(JSON.stringify({ version: 6, records: fluidRecords })),
   });
   await fluidsPage.locator("#yes").click();
+    await fluidsPage.locator("#confirm").waitFor({state:"hidden"});
   assert.match(await fluidsPage.locator(".hydration .metric").innerText(), /1,880/);
   assert.match(await fluidsPage.locator(".beverage .metric").innerText(), /1,400/);
   assert.equal(await fluidsPage.locator(".water .metric").innerText(), "尚無資料");
@@ -178,10 +185,11 @@ process.on("exit", () => server.kill());
   await fluidsPage.locator("[name=volume]").fill("800");
   await fluidsPage.locator("[name=endTime]").fill("20:30");
   await fluidsPage.locator("#edit-form .save").click();
+    await fluidsPage.locator("#editor").waitFor({state:"hidden"});
   assert.match(await fluidsPage.locator(".hydration .metric").innerText(), /2,680/);
   assert.match(await fluidsPage.locator(".water .metric").innerText(), /800/);
   const fluidBackup = await fluidsPage.evaluate(() => JSON.parse(localStorage.getItem("second-brain-lite-v2")));
-  assert.equal(fluidBackup.version, 6);
+  assert.equal(fluidBackup.version, 7);
   assert.equal(fluidBackup.records.length, 4);
   console.log("PASS synthetic liquid intake: pending excluded, confirmed counted once, editable water");
   await fluidsContext.close();

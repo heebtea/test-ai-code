@@ -62,7 +62,7 @@ it("uses tall measured cards and draws far more than 3 events within the PNG", (
   expect(plan.rows.some((row) => row.cards.some((card) => card.item.key === "timeline" && card.content.rows.length > 2))).toBe(true);
   expect(plan.shown).toBeGreaterThan(3);
   expect(drawn.some((cmd) => cmd[0] === "text" && cmd[1].includes("今日使用結構化"))).toBe(true);
-  expect(drawn.some((cmd) => cmd[0] === "text" && cmd[1].includes("綜合青菜"))).toBe(true);
+  expect(drawn.filter(cmd=>cmd[0] === "text").map(cmd=>cmd[1]).join("")).toContain("綜合青菜");
   expect(drawn.filter((cmd) => cmd[0] === "text" && cmd[1] === "19:47").length).toBe(1);
   // All content background rectangles stay above the reserved page footer.
   expect(drawn.filter((cmd) => cmd[0] === "rect" && cmd[2] >= 292)

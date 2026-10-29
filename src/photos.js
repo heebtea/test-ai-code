@@ -1,3 +1,4 @@
+import { guardedWrite } from "./storage-guard.js";
 const DB = "second-brain-private-photos";
 function open() {
   return new Promise((resolve, reject) => {
@@ -32,5 +33,5 @@ async function access(mode, run) {
 }
 export const getPhoto = (id) => access("readonly", (s) => s.get(id));
 export const putPhoto = (id, blob) =>
-  access("readwrite", (s) => s.put(blob, id));
-export const deletePhoto = (id) => access("readwrite", (s) => s.delete(id));
+  guardedWrite(() => access("readwrite", (s) => s.put(blob, id)));
+export const deletePhoto = (id) => guardedWrite(() => access("readwrite", (s) => s.delete(id)));
