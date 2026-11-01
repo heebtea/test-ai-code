@@ -1,0 +1,16 @@
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+
+> project-second-brain-lite@0.6.0 test
+> vitest run
+
+
+ RUN  v5.0.5 /workspace/scratch/a45ab7a0cb85/test-ai-code
+
+
+ Test Files  19 passed (19)
+      Tests  114 passed (114)
+   Start at  06:05:50
+   Duration  2.29s (tests 61%, environment 30%, import 5%, transform 3%, worker 1%)
+
+    Isolate  19 workers spawned · ~332ms startup each (spawn + environment, per file)
+             at least ~569ms faster with isolate: false — reuses workers across files instead of one per file

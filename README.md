@@ -4,7 +4,7 @@
 
 - AI 日期區間與分類分享、敏感文字預設排除、完整預覽、複製／下載／系統分享。
 - 預設本機模式；Supabase OTP/REST adapter、原子版本 SQL、離線待送、衝突與刪除標記實作。尚未連線真實雲端。
-- 可測唯讀 AI handler；OAuth/MCP 部署與 ChatGPT 連接尚未完成。
+- 唯讀 AI handler、實際 RS256/JWKS Token verifier 與 MCP transport；身份服務／資料庫接線、部署及 ChatGPT 連接尚未完成。
 - 照片／模板仍使用 v0.5 完整備份；不自動同步。沒有端到端加密；未授權前不建立任何外部服務。
 
 [交付與設定說明](docs/v0.6-private-sync.md) · [v0.6 驗證紀錄](docs/v0.6-verification.md)
