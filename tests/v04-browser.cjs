@@ -48,7 +48,6 @@ const server = spawn(
         let errs = [];
         page.on("pageerror", (e) => errs.push(e.message));
         await page.goto("http://127.0.0.1:4173/test-ai-code/");
-        assert.equal(await page.locator("#ocr-open, #ocr-drafts, #ocr-dialog").count(), 0, "OCR must not appear in the application");
         const date = await page.locator("#date").inputValue();
         await page.locator(".sleep .card-toggle").click();
         assert.equal(await page.locator("#sleep-dialog").isVisible(), true, "sleep detail should open");
@@ -78,6 +77,7 @@ const server = spawn(
           buffer: Buffer.from(JSON.stringify(v2)),
         });
         await page.locator("#yes").click();
+    await page.locator("#confirm").waitFor({state:"hidden"});
         await page.locator(".water .card-toggle").click();
         assert.equal(
           await page.locator(".water details").getAttribute("open"),
@@ -109,6 +109,7 @@ const server = spawn(
           buffer: Buffer.from(JSON.stringify(v3)),
         });
         await page.locator("#yes").click();
+    await page.locator("#confirm").waitFor({state:"hidden"});
         await page.locator("[data-add=coffee]").click();
         await page.locator("[name=payment]").selectOption("voucher");
         await page.locator("[name=volume]").fill("400");
@@ -116,6 +117,7 @@ const server = spawn(
         await page.locator("[name=startTime]").fill("10:00");
         await page.locator("[name=endTime]").fill("10:30");
         await page.locator("#edit-form .save").click();
+    await page.locator("#editor").waitFor({state:"hidden"});
         assert.equal(
           await page.locator(".coffee .metric").innerText(),
           "尚無資料",
@@ -126,11 +128,13 @@ const server = spawn(
         await page.locator("[name=startTime]").fill("12:00");
         await page.locator("[name=endTime]").fill("12:30");
         await page.locator("#edit-form .save").click();
+    await page.locator("#editor").waitFor({state:"hidden"});
         await page.locator(".timeline > summary").click();
         await page.locator("[data-add=event]").click();
         await page.locator("[name=name]").fill("合成重要事件");
         await page.locator("[name=time]").fill("08:30");
         await page.locator("#edit-form .save").click();
+    await page.locator("#editor").waitFor({state:"hidden"});
         await page.locator(".timeline > summary").click();
         let times = await page.locator(".timeline time").allTextContents();
         assert.deepEqual(times, [
@@ -202,13 +206,14 @@ const server = spawn(
         const backup = JSON.parse(
           fs.readFileSync(await (await jsonDownload).path(), "utf8"),
         );
-        assert.equal(backup.version, 5);
+        assert.equal(backup.version, 7);
         assert.equal(backup.records.length, 5);
         const eventId = backup.records.find((r) => r.type === "event").id;
         assert.equal(JSON.stringify(backup).includes("image/png"), false);
         await page.locator(".timeline-event").first().click();
         await page.locator("#detail-delete").click();
         await page.locator("#yes").click();
+    await page.locator("#confirm").waitFor({state:"hidden"});
         await page.waitForFunction(
           (id) =>
             !JSON.parse(

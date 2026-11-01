@@ -5,13 +5,13 @@ const SIZE = { width: 1080, height: 1920, left: 54, top: 292, bottom: 1815, cont
 const titleGroups = {
   overview: ["每日主題"],
   health: ["睡眠", "活動", "活動時間", "日照"],
-  food: ["餐點", "咖啡已飲用", "飲水", "其他飲品已飲用", "今日已飲用總量", "已付款花費"],
+  food: ["餐點", "咖啡已飲用", "飲水", "其他飲品已飲用", "今日已飲用總量", "已付款花費", "購買明細", "退費明細", "回補明細", "已確認淨支出", "飲品明細"],
   highlight: ["今日亮點"],
   body: ["身體狀況", "心情"],
   todo: ["待辦事項"],
 };
 const familyOf = (t) => t.font === "serif"
-  ? 'Georgia, "Microsoft JhengHei", serif' : '"Microsoft JhengHei", sans-serif';
+  ? 'Georgia, "PingFang TC", "Microsoft JhengHei", "Noto Sans CJK TC", serif' : '"PingFang TC", "Microsoft JhengHei", "Noto Sans CJK TC", sans-serif';
 const font = (ctx, size, family, bold = false) => {
   ctx.font = (bold ? "bold " : "") + size + "px " + family;
 };
@@ -21,7 +21,7 @@ export function wrapJournalText(ctx, value, width) {
   const lines = [];
   for (const paragraph of String(value ?? "").split(/\r?\n/)) {
     let line = "";
-    const words = paragraph.match(/\s+|[A-Za-z0-9_.:/-]+|./gu) || [];
+    const words = paragraph.match(/\s+|[A-Za-z0-9_$% .:/-]+|./gu) || [];
     for (const word of words) {
       if (line && ctx.measureText(line + word).width > width) {
         lines.push(line.trimEnd());
@@ -54,7 +54,7 @@ function articleRows(ctx, item, width, size, family, limit) {
 }
 function eventRows(ctx, item, width, size, family, count, columns) {
   font(ctx, size - 1, family);
-  const colWidth = (width - 32 - (columns === 2 ? 16 : 0)) / columns;
+  const colWidth = (width - 32 - ((columns - 1) * 16)) / columns;
   const visible = item.events.slice(0, count);
   const rows = [];
   for (let i = 0; i < visible.length; i += columns) {
@@ -82,13 +82,13 @@ function measure(ctx, items, columns, size, family, shown, limits) {
     } else if (columns === 1) rows.push({ items: [item], wide: true });
     else {
       queue.push(item);
-      if (queue.length === 2) flush();
+      if (queue.length === columns) flush();
     }
   }
   flush();
   let height = Math.max(0, rows.length - 1) * SIZE.rowGap;
   for (const row of rows) {
-    const width = row.wide ? SIZE.contentWidth : (SIZE.contentWidth - SIZE.gap) / 2;
+    const width = row.wide ? SIZE.contentWidth : (SIZE.contentWidth - SIZE.gap * (row.items.length - 1)) / row.items.length;
     row.cards = row.items.map((item) => {
       if (item.key === "timeline") {
         const content = eventRows(ctx, item, width, size, family, shown, columns);
@@ -104,12 +104,18 @@ function measure(ctx, items, columns, size, family, shown, limits) {
   return { rows, height, size, columns, shown, limits };
 }
 export function planJournalLayout(ctx, sections, events, template) {
-  const items = template.mapping.map((key) => {
+  const foodGroups = [
+    ['food-meals', '飲食時間線', ['餐點']],
+    ['food-drinks', '飲品與攝取', ['咖啡已飲用','飲水','其他飲品已飲用','今日已飲用總量','飲品明細']],
+    ['food-money', '花費明細', ['已付款花費','購買明細','退費明細','回補明細','已確認淨支出']],
+  ];
+  const items = template.mapping.flatMap((key) => {
+    if (key === 'food') return foodGroups.map(([key,title,titles]) => ({key,title,values:sections.filter(v=>titles.includes(v.title))})).filter(item=>item.values.length);
     if (key === "timeline") return events.length ? { key, events } : null;
     const values = sections.filter((v) => (titleGroups[key] || []).includes(v.title));
     return values.length ? { key, values } : null;
   }).filter(Boolean);
-  const columns = template.columns === 1 ? 1 : 2;
+  const columns = [1,2,3].includes(template.columns) ? template.columns : 3;
   const family = familyOf(template);
   if (!items.length) return { rows: [], height: 0, missing: true, shown: 0, clipped: 0 };
   let shown = events.length;
@@ -158,7 +164,7 @@ function paintCard(ctx, card, x, y, width, height, size, family, template, colum
   ctx.fillRect(x, y, width, SIZE.header);
   ctx.fillStyle = readableAccent(template.accent);
   font(ctx, 27, family, true);
-  ctx.fillText(sectionNames[card.item.key], x + 15, y + 32, width - 30);
+  ctx.fillText(card.item.title || sectionNames[card.item.key], x + 15, y + 32, width - 30);
   if (card.item.key !== "timeline") {
     font(ctx, size, family);
     ctx.fillStyle = "#263d37";
@@ -169,8 +175,8 @@ function paintCard(ctx, card, x, y, width, height, size, family, template, colum
     }
     return;
   }
-  const gutter = columns === 2 ? 16 : 0;
-  const cw = (width - 32 - gutter) / columns;
+  const gutter = 16;
+  const cw = (width - 32 - gutter * (columns - 1)) / columns;
   let top = y + SIZE.header + 15;
   for (const row of card.content.rows) {
     row.cells.forEach((cell, i) => {
@@ -215,7 +221,7 @@ export function renderJournalTemplate(canvas, sections, events, date, template) 
   } else {
     let top = SIZE.top;
     for (const row of plan.rows) {
-      const width = row.wide ? SIZE.contentWidth : (SIZE.contentWidth - SIZE.gap) / 2;
+      const width = row.wide ? SIZE.contentWidth : (SIZE.contentWidth - SIZE.gap * (row.cards.length - 1)) / row.cards.length;
       row.cards.forEach((card, index) =>
         paintCard(ctx, card, SIZE.left + index * (width + SIZE.gap),
           top, width, row.height, plan.size, family, template, plan.columns));
