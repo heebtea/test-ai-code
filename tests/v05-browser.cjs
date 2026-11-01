@@ -21,7 +21,7 @@ async function importComplete(page,value){
 }
 async function apply(page){await page.locator('#backup-apply').click();await page.locator('#backup-dialog').waitFor({state:'hidden'});}
 async function exportComplete(page){const download=page.waitForEvent('download');await page.locator('#complete-export').click();return JSON.parse(fs.readFileSync(await (await download).path(),'utf8'));}
-const comparable=x=>{const y=structuredClone(x);delete y.createdAt;return y;};
+const comparable=x=>{const y=structuredClone(x);delete y.createdAt;delete y.appVersion;return y;};
 (async()=>{
  let browser;
  try{

@@ -15,7 +15,7 @@ export const types = [
 ];
 export const empty = () => ({ version: 5, records: [] });
 export function localDate(d = new Date()) {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  return new Intl.DateTimeFormat('en-CA', {timeZone:'Asia/Taipei',year:'numeric',month:'2-digit',day:'2-digit'}).format(d);
 }
 export function validDate(s) {
   return (
@@ -28,9 +28,9 @@ export function validDate(s) {
   );
 }
 export function shiftDate(s, n) {
-  const d = new Date(s + "T12:00:00");
-  d.setDate(d.getDate() + n);
-  return localDate(d);
+  const d = new Date(s + "T00:00:00Z");
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
 }
 export const fields = {
   sleep: { minutes: 1440, deep: 1440, rem: 1440, score: 100 },

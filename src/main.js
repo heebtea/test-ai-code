@@ -1,6 +1,9 @@
+import { recoverSync } from "./private-sync.js";
+import { createSyncUI } from "./private-sync-ui.js";
 import "./style.css";
 import { exportComplete, previewComplete, applyComplete, recoverComplete, MAX_BACKUP_BYTES } from "./backup.js";
 import { guardedWrite, RESTORE_KEY } from "./storage-guard.js";
+import { openAiShare } from "./ai-share.js";
 import { openSleepDetail } from "./sleep-detail.js";
 import { recognizeCard } from "./ocr.js";
 import { planReviewBatch } from "./ocr-review.js";
@@ -84,6 +87,7 @@ function clearPhotoUrls() {
 }
 try {
   storage = window.localStorage;
+  recoverSync(storage);
   data = loadRecords(storage);
   theme = storage.getItem(THEME_KEY) === "dark" ? "dark" : "light";
   if (storage.getItem("second-brain-lite-v1"))
@@ -93,6 +97,7 @@ try {
   message =
     "無法讀取本機資料或資料毀損。已停止寫入，原內容未覆寫。請先匯出原始儲存內容或檢查瀏覽器設定。";
 }
+const syncUI = createSyncUI({storage,onChange:()=>{ data=loadRecords(storage); render(); }});
 const fmt = (v, unit = "") =>
   v === null ? "尚無資料" : `${v.toLocaleString("zh-TW")} ${unit}`;
 function total(rs, k, u) {
@@ -146,6 +151,7 @@ function save(next) {
     throw Error("另一分頁已更新資料，請重新整理後再操作");
   persist(storage, next);
   data = next;
+  syncUI.changed();
   });
 }
 function render() {
@@ -153,7 +159,7 @@ function render() {
   document.documentElement.dataset.theme = theme;
   const liquids = liquidIntake(data, date);
   const flow = cashflow(data, date);
-  app.innerHTML = `<div class="shell"><header class="topbar"><div class="brand">✳ SECOND BRAIN LITE v0.5</div><button id="theme" class="theme-toggle">${theme === "dark" ? "淺色" : "深色"}模式</button></header><main><div class="intro"><div><h1>Project Second Brain</h1><p>生活小誌 · 留下今天的一點線索。</p></div></div><div class="notice">僅本機保存 · 尚未跨裝置同步。完整備份包含生活紀錄、照片、模板及設定；請自行轉移備份檔，勿上傳公開 GitHub。</div><p id="message" role="status">${esc(message)}</p><div class="toolbar"><button id="complete-export">匯出完整備份（含照片／模板）</button><label class="file-button">還原完整／舊版備份<input id="complete-import" type="file" accept="application/json,.json" ${blocked ? "disabled" : ""}></label><button id="export">匯出紀錄 JSON（不含照片）</button><label class="file-button">匯入 JSON 備份<input id="import" type="file" accept="application/json,.json" ${blocked ? "disabled" : ""}></label>${blocked ? '<button id="raw">匯出原始儲存內容</button>' : ""}</div><div class="section-heading"><h2>每日總覽</h2><div class="date-nav"><button id="prev" aria-label="前一天">‹</button><input id="date" type="date" min="1900-01-01" max="2199-12-31" value="${date}" aria-label="選擇日期"><button id="next" aria-label="後一天">›</button></div></div><div class="dashboard"><section class="card hydration"><div class="card-head"><h2>今日已飲用總量</h2></div><button class="card-toggle" aria-expanded="false"><span class="metric">${fmt(liquids.value, "mL 已飲用")}${liquids.unknown ? `（${liquids.unknown} 筆容量未知）` : ""}</span><span class="card-cue">查看白開水、咖啡及其他飲品明細 ↗</span></button><details class="record-details"><summary>分類明細</summary><p>白開水：${fmt(liquids.breakdown.water.value, "mL")} · 咖啡：${fmt(liquids.breakdown.coffee.value, "mL")} · 其他飲品：${fmt(liquids.breakdown.beverage.value, "mL")}</p><p>${liquids.pending} 筆飲用中／未確認，未計入總量；已飲用但容量未知者也不推算。每筆紀錄只計一次。</p></details></section>${types
+  app.innerHTML = `<div class="shell"><header class="topbar"><div class="brand">✳ SECOND BRAIN LITE v0.6</div><button id="theme" class="theme-toggle">${theme === "dark" ? "淺色" : "深色"}模式</button></header><main><div class="intro"><div><h1>Project Second Brain</h1><p>生活小誌 · 留下今天的一點線索。</p></div></div><div class="notice"><span id="sync-state">本機模式 · 尚未連接雲端</span>。完整備份包含生活紀錄、照片、模板及設定；請自行轉移備份檔，勿上傳公開 GitHub。</div><p id="message" role="status">${esc(message)}</p><div class="toolbar"><button type="button" id="ai-share" ${blocked ? "disabled" : ""}>分享資料給 AI</button><button id="private-sync" ${blocked ? "disabled" : ""}>私人同步設定</button><button id="complete-export">匯出完整備份（含照片／模板）</button><label class="file-button">還原完整／舊版備份<input id="complete-import" type="file" accept="application/json,.json" ${blocked ? "disabled" : ""}></label><button id="export">匯出紀錄 JSON（不含照片）</button><label class="file-button">匯入 JSON 備份<input id="import" type="file" accept="application/json,.json" ${blocked ? "disabled" : ""}></label>${blocked ? '<button id="raw">匯出原始儲存內容</button>' : ""}</div><div class="section-heading"><h2>每日總覽</h2><div class="date-nav"><button id="prev" aria-label="前一天">‹</button><input id="date" type="date" min="1900-01-01" max="2199-12-31" value="${date}" aria-label="選擇日期"><button id="next" aria-label="後一天">›</button></div></div><div class="dashboard"><section class="card hydration"><div class="card-head"><h2>今日已飲用總量</h2></div><button class="card-toggle" aria-expanded="false"><span class="metric">${fmt(liquids.value, "mL 已飲用")}${liquids.unknown ? `（${liquids.unknown} 筆容量未知）` : ""}</span><span class="card-cue">查看白開水、咖啡及其他飲品明細 ↗</span></button><details class="record-details"><summary>分類明細</summary><p>白開水：${fmt(liquids.breakdown.water.value, "mL")} · 咖啡：${fmt(liquids.breakdown.coffee.value, "mL")} · 其他飲品：${fmt(liquids.breakdown.beverage.value, "mL")}</p><p>${liquids.pending} 筆飲用中／未確認，未計入總量；已飲用但容量未知者也不推算。每筆紀錄只計一次。</p></details></section>${types
     .filter((type) => type !== "event" && type !== "journal")
     .map((type) => {
       const rs = rows(data, date, type);
@@ -338,6 +344,9 @@ function render() {
     } catch (err) { message = "還原預覽失敗：" + err.message; render(); }
     finally { e.target.value = ""; }
   };
+  document.querySelector("#private-sync").onclick = () => syncUI.open();
+  syncUI.update();
+  document.querySelector("#ai-share").onclick = () => openAiShare(data, date);
   document.querySelector("#export").onclick = () =>
     download(JSON.stringify(data, null, 2), "second-brain-backup.json");
   document.querySelector("#raw")?.addEventListener("click", () => {

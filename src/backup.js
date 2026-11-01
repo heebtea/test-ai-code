@@ -88,7 +88,7 @@ async function envelope(snap) {
   for (const [id, blob] of snap.photos) photos.push({ id, ...await encodeBlob(blob) });
   const templates = [];
   for (const [, t] of snap.templates) templates.push({ ...validateTemplate(t), image: t.image ? await encodeBlob(t.image) : null });
-  return { format: FORMAT, backupVersion: 1, appVersion: '0.5.0', records, photos, templates,
+  return { format: FORMAT, backupVersion: 1, appVersion: '0.6.0', records, photos, templates,
     settings: { theme: snap.local[THEME_KEY], template: snap.local[TEMPLATE_KEY] } };
 }
 const digest = async value => Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(canonical(value))))).map(b => b.toString(16).padStart(2, '0')).join('');

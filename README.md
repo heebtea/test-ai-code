@@ -1,3 +1,19 @@
+# v0.6 私人同步與 AI 分享（Draft，尚未部署）
+
+本分支整合 PR #14 與 #15；正式 main／網站保持不變。
+
+- AI 日期區間與分類分享、敏感文字預設排除、完整預覽、複製／下載／系統分享。
+- 預設本機模式；Supabase OTP/REST adapter、原子版本 SQL、離線待送、衝突與刪除標記實作。尚未連線真實雲端。
+- 可測唯讀 AI handler；OAuth/MCP 部署與 ChatGPT 連接尚未完成。
+- 照片／模板仍使用 v0.5 完整備份；不自動同步。沒有端到端加密；未授權前不建立任何外部服務。
+
+[交付與設定說明](docs/v0.6-private-sync.md) · [v0.6 驗證紀錄](docs/v0.6-verification.md)
+
+`npm ci` → `npm test` → `npm run lint` → `npm run build` → `npm run test:browser`。
+若環境沒有 Chrome，可設定 `CHROME_PATH` 指向已安裝的 Chromium。實體 iPhone Safari 尚未驗證。
+
+以下保留 v0.5 的功能與遷移說明供對照。
+
 # Project Second Brain Lite v0.5
 
 繁體中文生活紀錄工具。首次啟動為空白，**僅本機保存、尚未跨裝置同步**。資料保存在 localStorage 與 IndexedDB，圖片辨識也在瀏覽器本機完成。沒有帳號、後端、分析服務或外部資料上傳。不要把個人備份提交公開 GitHub。

@@ -1,0 +1,2 @@
+PASS v0.6 light: mobile/desktop isolated storage, date/privacy preview, identical share/download, offline UI edits, reconnect conflicts, retry, auth refusal, stop/reload and no token persistence
+PASS v0.6 dark: mobile/desktop isolated storage, date/privacy preview, identical share/download, offline UI edits, reconnect conflicts, retry, auth refusal, stop/reload and no token persistence

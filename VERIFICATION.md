@@ -36,3 +36,7 @@ Node.js 24，Linux；Chromium Headless Shell 141.0.7390.37。環境的預設 Chr
 審查用圖片在 `docs/screenshots/`；完整測試執行會重新產生 `test-results/`（不提交）。
 
 最後來源修改僅提高 OCR 信心門檻；78 項單元／DOM、lint、build 與真實 OCR 引擎再次通過。完整瀏覽器套件此前已全部通過。
+
+## v0.6 開發分支
+
+最新結果與限制另見 [v0.6 驗證紀錄](docs/v0.6-verification.md)；本檔上方是 v0.5 歷史紀錄，不能當作本次雲端連線驗證。

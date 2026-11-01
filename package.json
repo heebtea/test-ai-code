@@ -1,17 +1,18 @@
 {
   "name": "project-second-brain-lite",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "vite --host 0.0.0.0",
     "build": "vite build",
     "test": "vitest run",
-    "test:browser": "node tests/browser.cjs && node tests/v03-browser.cjs && node tests/v04-browser.cjs && node tests/template-browser.cjs && node tests/ocr-batch-browser.cjs && node tests/ocr-mixed-browser.cjs && node tests/v05-browser.cjs && node tests/ocr-engine-browser.cjs",
-    "lint": "eslint src tests",
+    "test:browser": "node tests/browser.cjs && node tests/v03-browser.cjs && node tests/v04-browser.cjs && node tests/template-browser.cjs && node tests/ocr-batch-browser.cjs && node tests/ocr-mixed-browser.cjs && node tests/v05-browser.cjs && node tests/ocr-engine-browser.cjs && node tests/v06-browser.cjs",
+    "lint": "eslint src server tests",
     "test:webkit": "BROWSER_ENGINE=webkit node tests/v05-browser.cjs"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.14",
     "@eslint/js": "^10.0.1",
     "eslint": "^10.13.0",
     "fake-indexeddb": "^6.2.6",
