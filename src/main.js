@@ -1,5 +1,6 @@
 import "./style.css";
 import { openSleepDetail } from "./sleep-detail.js";
+import { openMetricDetail, metricTypes } from "./metric-detail.js";
 import { timeline, drawTemplateJournal, journalSections } from "./journal.js";
 import {
   baseTemplate,
@@ -165,7 +166,7 @@ function render() {
         summary = `${rs.some((r) => r.status === "吃完") ? rs.filter((r) => r.status === "吃完").length + " 筆吃完" : "完整食用尚無資料"} · ${rs.filter((r) => r.status === "部分").length} 筆部分 · ${rs.filter((r) => r.status === "未確認").length} 筆未確認`;
       if (type === "spending")
         summary = total(expenses(data, date), "amount", "NT$");
-      return `<section class="card ${type}"><div class="card-head"><h2>${names[type]}</h2>${type === "sleep" ? '<button type="button" class="sleep-view" data-sleep-view>睡眠圖</button>' : ""}<button data-add="${type}" ${blocked ? "disabled" : ""}>新增</button></div><button class="card-toggle" aria-expanded="false" aria-label="展開${names[type]}明細"><span class="metric">${summary}</span><span class="card-cue">查看紀錄 ↗</span></button><details class="record-details"><summary>紀錄明細（${rs.length}）</summary>${type === "spending" ? "<p>依付款日計算餐點、購買日計算咖啡，加上已付款花費。餐點與咖啡請勿再記一筆花費；券只在購券時記帳。付款日期未知的餐點不推定為今日支出。</p>" : ""}${
+      return `<section class="card ${type}"><div class="card-head"><h2>${names[type]}</h2>${type === "sleep" ? '<button type="button" class="sleep-view" data-sleep-view>睡眠圖</button>' : metricTypes.includes(type) ? `<button type="button" class="metric-view" data-metric-view="${type}">日／週／月</button>` : ""}<button data-add="${type}" ${blocked ? "disabled" : ""}>新增</button></div><button class="card-toggle" aria-expanded="false" aria-label="展開${names[type]}明細"><span class="metric">${summary}</span><span class="card-cue">查看紀錄 ↗</span></button><details class="record-details"><summary>紀錄明細（${rs.length}）</summary>${type === "spending" ? "<p>依付款日計算餐點、購買日計算咖啡，加上已付款花費。餐點與咖啡請勿再記一筆花費；券只在購券時記帳。付款日期未知的餐點不推定為今日支出。</p>" : ""}${
         type === "activity"
           ? `<p>已完成時間：${total(
               rs.filter((r) => r.status === "已完成"),
@@ -184,7 +185,7 @@ function render() {
           `<li><button class="timeline-event" data-event="${entry.record.id}"><time>${esc(entry.time)}</time><span><b>${esc(entry.label)}</b><small>${esc(entry.record.name || entry.record.status)}</small></span><img data-photo="${entry.record.id}" alt="事件照片" hidden></button></li>`,
       )
       .join("") || "<li>尚無有時間的紀錄</li>"
-  }</ul><button data-add="event" ${blocked ? "disabled" : ""}>＋ 新增重要事件</button></details>${templateView()}<section class="journal-banner"><div><small>THE DAILY EDIT</small><h2>把今天，收進小誌裡。</h2><p>用已記錄的片段，留下一張屬於今天的直式小誌。</p></div><button id="journal">產生今日小誌</button></section><p class="footer">睡眠以起床日期記錄；活動請記錄不重疊的區段。空白數值代表未知，只有明確輸入 0 才是零。</p></main></div><dialog id="editor" aria-labelledby="dialog-title"></dialog><dialog id="confirm" aria-labelledby="confirm-title"></dialog><dialog id="event-detail"></dialog><dialog id="journal-dialog"></dialog><dialog id="template-editor"></dialog><dialog id="sleep-dialog" aria-label="睡眠詳情"></dialog>`;
+  }</ul><button data-add="event" ${blocked ? "disabled" : ""}>＋ 新增重要事件</button></details>${templateView()}<section class="journal-banner"><div><small>THE DAILY EDIT</small><h2>把今天，收進小誌裡。</h2><p>用已記錄的片段，留下一張屬於今天的直式小誌。</p></div><button id="journal">產生今日小誌</button></section><p class="footer">睡眠以起床日期記錄；活動請記錄不重疊的區段。空白數值代表未知，只有明確輸入 0 才是零。</p></main></div><dialog id="editor" aria-labelledby="dialog-title"></dialog><dialog id="confirm" aria-labelledby="confirm-title"></dialog><dialog id="event-detail"></dialog><dialog id="journal-dialog"></dialog><dialog id="template-editor"></dialog><dialog id="sleep-dialog" aria-label="睡眠詳情"></dialog><dialog id="metric-dialog" aria-label="日週月統計詳情"></dialog>`;
   applyTemplateStyles(
     document.querySelector(".template-sheet"),
     selectedTemplate,
@@ -197,6 +198,9 @@ function render() {
   );
   document.querySelectorAll("[data-sleep-view]").forEach((button) => {
     button.onclick = () => openSleepDetail(document.querySelector("#sleep-dialog"), data, date);
+  });
+  document.querySelectorAll("[data-metric-view]").forEach((button) => {
+    button.onclick = () => openMetricDetail(document.querySelector("#metric-dialog"), data, date, button.dataset.metricView);
   });
   document.querySelectorAll(".card-toggle").forEach(
     (button) =>
