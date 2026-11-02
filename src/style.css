@@ -878,3 +878,11 @@ dialog p {
 #metric-dialog .metric-detail-row strong{overflow-wrap:anywhere;max-width:100%}
 #metric-dialog .metric-load-error{padding:14px;border:1px solid #ffb38b;border-radius:8px;color:#ffcfb5;line-height:1.7}
 #metric-dialog :focus-visible{outline:2px solid #b6d7ff;outline-offset:2px}
+
+/* Touch targets remain available for zero and missing measurements. */
+#sleep-dialog button.sleep-trend-column { min-width:44px; padding:4px 0; border:0; background:transparent; color:inherit; border-radius:5px; }
+#sleep-dialog button.sleep-trend-column[aria-pressed=true] { outline:2px solid #91c4ff; outline-offset:-2px; background:#29364a; }
+.sleep-selected-detail, .sleep-record-list { overflow-wrap:anywhere; }
+.sleep-selected-detail:empty { display:none; }
+.sleep-selected-detail button { min-height:44px; }
+.sleep-record { border-top:1px solid #545968; padding:8px 0; }

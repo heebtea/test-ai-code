@@ -5,7 +5,7 @@ import {
   moveMetricDate,
   dayState,
 } from "./metric-model.js";
-import { validDate, transactionDate } from "./data.js";
+import { validDate, transactionDate, isPaid } from "./data.js";
 import { mealTypes, orderStates } from "./stat-fields.js";
 export {
   metricTypes,
@@ -71,7 +71,10 @@ export function recordLabel(r, type) {
   else if (type === "activity")
     parts.push(val(r.steps, "步"), val(r.minutes, "分鐘"));
   else if (type === "sunlight") parts.push(val(r.minutes, "分鐘"));
-  else if (type !== "spending") parts.push("容量 " + val(r.volume, "mL"));
+  else if (type !== "spending") parts.push("容量 " + val(r.volume, "mL"),
+    "開始 " + (r.startTime || "時間未知"),
+    "結束 " + (r.endTime || "時間未知"));
+  if (type === "spending") parts.push(isPaid(r) ? "已付款／入帳金額 " + val(r.amount, "NT$") : "尚未確認付款，不計合計");
   if (["coffee", "meal", "beverage", "spending"].includes(r.type))
     parts.push(
       r.payment === "voucher"
@@ -93,6 +96,8 @@ export function openMetricDetail(dialog, source, anchorDate, metricType) {
     selectedDay = null;
   const read = () => (typeof source === "function" ? source() : source);
   function paint(focus) {
+    const chartScroll = dialog.querySelector(".metric-chart-scroll")?.scrollLeft || 0;
+    const scrollTop = dialog.scrollTop;
     dialog.replaceChildren();
     const top = el("div", "metric-detail-header");
     top.append(el("h2", "", names[metricType] + "統計"));
@@ -386,11 +391,16 @@ export function openMetricDetail(dialog, source, anchorDate, metricType) {
             day.state +
             (day.value === null ? "" : " · " + fmt(day.value, metricType)),
         ),
-        button("顯示整段期間", () => {
+        button("返回整體趨勢／顯示整段期間", () => {
+          const previous = selectedDay;
           selectedDay = null;
-          paint();
+          paint("day-" + previous);
+          dialog.querySelector(".metric-chart")?.scrollIntoView?.({block: "nearest"});
         }),
       );
+      if (metricType === "spending") {
+        for (const [key, label] of [["purchase", "當日已付款購買"], ["refund", "當日退費"], ["reimbursement", "當日回補"]]) row(list, label, fmt(day.extra[key].value, "spending"));
+      }
     }
     list.append(el("h3", "", "逐筆時間線（" + entries.length + "）"));
     if (!entries.length)
@@ -409,7 +419,12 @@ export function openMetricDetail(dialog, source, anchorDate, metricType) {
         );
       list.append(ul);
     }
-    dialog.append(list);
+    list.setAttribute("aria-live", "polite");
+    dialog.insertBefore(list, dialog.querySelector(".metric-week-compare"));
+    const scroller = dialog.querySelector(".metric-chart-scroll");
+    if (scroller) scroller.scrollLeft = chartScroll;
+    dialog.scrollTop = scrollTop;
+    if (selectedDay && focus?.startsWith("day-")) list.scrollIntoView?.({block: "nearest"});
     if (focus)
       dialog
         .querySelector('[data-focus="' + focus + '"]')

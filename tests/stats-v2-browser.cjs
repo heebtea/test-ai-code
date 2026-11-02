@@ -57,6 +57,7 @@ const seed = {
   records: [
     coffee,
     meal,
+    {id:"synthetic-sleep", type:"sleep", date:day, time:"", note:"合成睡眠", status:"已完成", minutes:450, deep:60, rem:90, core:300, awake:20, score:85},
     {
       ...coffee,
       id: "finished",
@@ -121,6 +122,7 @@ async function snapshot(page, name) {
         page = await context.newPage(),
         errors = [],
         requests = [];
+      page.setDefaultTimeout(15000);
       page.on("pageerror", (e) => errors.push(e.message));
       page.on("request", (r) => requests.push(r.url()));
       await page.goto(url);
@@ -243,7 +245,45 @@ async function snapshot(page, name) {
         await page.locator("#sleep-dialog").innerText(),
         /6.*月|六個月/,
       );
+      const touch = async locator => width === 390 ? locator.tap() : locator.click();
+      const stored = await page.evaluate(() => localStorage.getItem("second-brain-lite-v2"));
+      for (const period of ["週", "月"]) {
+        await touch(page.locator(".sleep-tab").filter({hasText: new RegExp("^"+period+"$")}));
+        const count = await page.locator("[data-sleep-day]").count();
+        await touch(page.locator('[data-sleep-day="2026-11-02"]'));
+        assert.match(await page.locator(".sleep-selected-detail").innerText(), /7 小時 30 分/);
+        assert.match(await page.locator(".sleep-selected-detail").innerText(), /85/);
+        assert.match(await page.locator(".sleep-record-list").innerText(), /synthetic-sleep/);
+        assert.equal(await page.locator("[data-sleep-day]").count(), count);
+        await page.screenshot({path: `test-results/chart-touch-${width}-sleep-${period === "週" ? "week" : "month"}.png`});
+        await touch(page.locator('[data-sleep-day="2026-11-01"]'));
+        assert.match(await page.locator(".sleep-selected-detail").innerText(), /沒有睡眠紀錄/);
+        await touch(page.locator('[data-sleep-day="2026-11-02"]'));
+        await touch(page.getByRole("button", {name:"返回整體趨勢", exact:true}));
+        assert.equal(await page.locator(".sleep-selected-detail").innerText(), "");
+      }
       await page.locator("#sleep-dialog").evaluate((d) => d.close());
+      for (const type of ["coffee", "water", "beverage", "meal", "spending", "activity", "sunlight"]) {
+        await page.locator(`[data-metric-view=${type}]`).click();
+        for (const index of [1, 2]) {
+          await touch(page.locator(".metric-period-tabs button").nth(index));
+          for (const date of ["2026-11-02", "2026-11-03", "2026-11-02"]) {
+            await touch(page.locator(`[data-day="${date}"]`));
+            assert.match(await page.locator(".metric-record-list").innerText(), new RegExp(date));
+            assert.equal(await page.locator(`[data-day="${date}"]`).getAttribute("aria-pressed"), "true");
+            assert.equal(await page.locator(".metric-period-tabs button").nth(index).getAttribute("aria-pressed"), "true");
+          }
+          if (type === "coffee") assert.match(await page.locator(".metric-record-list").innerText(), /開始 09:00.*結束 時間未知/);
+          if (type === "spending") assert.match(await page.locator(".metric-record-list").innerText(), /當日已付款購買.*360 NT\$/s);
+          if (type === "meal") assert.match(await page.locator(".metric-record-list").innerText(), /開吃 12:00.*完食 12:30/);
+          await touch(page.getByRole("button", {name:"返回整體趨勢／顯示整段期間"}));
+          assert.equal(await page.locator('[data-day][aria-pressed="true"]').count(), 0);
+        }
+        await page.locator(".metric-detail-close").click();
+      }
+      assert.equal(await page.evaluate(() => localStorage.getItem("second-brain-lite-v2")), stored);
+      console.log(`PASS chart touch ${width}px: all seven categories and sleep, repeated date selection, missing day, return, unchanged storage`);
+
       // Default applies only on an explicit voucher selection and never overwrites a correction.
       await page.locator("[data-add=coffee]").click();
       await page.locator("[name=payment]").selectOption("voucher");
