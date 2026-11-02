@@ -44,6 +44,7 @@ process.on("exit", () => server.kill());
     page.on("pageerror", (e) => errors.push(e.message));
     page.on("request", (r) => requests.push(r.url()));
     await page.goto("http://127.0.0.1:4173/test-ai-code/");
+    await page.locator(".dashboard").waitFor();
     assert.equal(
       await page.locator(".metric").filter({ hasText: "尚無資料" }).count(),
       9,
