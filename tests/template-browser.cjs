@@ -128,6 +128,7 @@ const server = spawn(
           fullPage: true,
         });
         await p.reload();
+        await p.locator("#template-select").waitFor();
         await p.waitForFunction(
           () => document.querySelector("#template-select").value !== "default",
         );

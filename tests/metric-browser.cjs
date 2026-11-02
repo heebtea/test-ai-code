@@ -25,7 +25,8 @@ process.on("exit", () => server.kill());
       const errors = [];
       page.on("pageerror", (error) => errors.push(error.message));
       await page.goto("http://127.0.0.1:4173/test-ai-code/");
-      for (const type of ["coffee", "water", "beverage", "activity", "sunlight", "spending"]) {
+      await page.locator(".dashboard").waitFor();
+      for (const type of ["coffee", "water", "beverage", "activity", "sunlight", "spending", "meal"]) {
         const button = page.locator(".card." + type + " [data-metric-view]");
         assert.equal(await button.count(), 1, type + ": missing period button");
         await button.click();
@@ -45,7 +46,7 @@ process.on("exit", () => server.kill());
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
       await context.close();
     }
-    console.log("Six-category daily/weekly/monthly browser smoke passed");
+    console.log("Seven-category daily/weekly/monthly browser smoke passed");
   } finally {
     if (browser) await browser.close();
     server.kill();

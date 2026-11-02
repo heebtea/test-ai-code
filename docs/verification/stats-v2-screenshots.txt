@@ -1,0 +1,2 @@
+PASS Statistics V2 390px: day/week/month/empty/error screenshots, meal self-vs-family, chart drilldown, previous/next month, read-only refresh, same-ID update, refund date, voucher default override, sleep preserved, no outbound or overflow
+PASS Statistics V2 1440px: day/week/month/empty/error screenshots, meal self-vs-family, chart drilldown, previous/next month, read-only refresh, same-ID update, refund date, voucher default override, sleep preserved, no outbound or overflow

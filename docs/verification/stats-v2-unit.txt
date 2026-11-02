@@ -1,0 +1,13 @@
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+
+> project-second-brain-lite@0.4.0 test
+> vitest run
+
+
+ RUN  v5.0.5 /workspace/scratch/a45ab7a0cb85/test-ai-code
+
+
+ Test Files  8 passed (8)
+      Tests  55 passed (55)
+   Start at  12:46:48
+   Duration  938ms (tests 46%, environment 43%, transform 7%, import 3%, worker 1%)

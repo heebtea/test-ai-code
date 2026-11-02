@@ -1,0 +1,31 @@
+93bc64aa501b20208956d32d6bc4a74d0b590587
+100644 ea4853be9d4d41eccde75fe963b691789ef0222d 1	package.json
+100644 3101405ebc7de8cbba219183eb7b02a2376d45f7 2	package.json
+100644 ab3a702a43b4b3d525619247cd595d74be1b2dcd 3	package.json
+100644 5cdccd176b04b4c66df98a7f9b85a6ded6586a5d 1	src/data.js
+100644 43b4c8717137bd98e6a60cddcd1fbe6b0f234bba 2	src/data.js
+100644 e78e11fef3dd66aab0a1897c7ccbc35e4a3842f0 3	src/data.js
+100644 363a41ac76eb7c993c2e6a5ca5e70e8c18728276 1	src/main.js
+100644 726baf4127ce41180adf5440edc16957b3f05fb2 2	src/main.js
+100644 d1bb8f4c4f12eb680b485244acc93c7c29005e45 3	src/main.js
+100644 2e832f480f6f866340a25b29304133a17a94aadc 1	src/style.css
+100644 a1ec23e58e31ec26a58cfbca6d07b9af7880e578 2	src/style.css
+100644 ab7297b160b89431dc570cfaa73f5fb2b4e28659 3	src/style.css
+100644 687b44178bab20dde0261b75661dd5cf371d4125 1	tests/v04-browser.cjs
+100644 12284ed97e46eb7a76f422d34a618614a673374a 2	tests/v04-browser.cjs
+100644 92cb487287a057c9fcd4f04056bd4d14a6ba81b4 3	tests/v04-browser.cjs
+
+Auto-merging package.json
+CONFLICT (content): Merge conflict in package.json
+Auto-merging src/data.js
+CONFLICT (content): Merge conflict in src/data.js
+Auto-merging src/main.js
+CONFLICT (content): Merge conflict in src/main.js
+Auto-merging src/style.css
+CONFLICT (content): Merge conflict in src/style.css
+Auto-merging tests/browser.cjs
+Auto-merging tests/template-browser.cjs
+Auto-merging tests/v03-browser.cjs
+Auto-merging tests/v03.test.js
+Auto-merging tests/v04-browser.cjs
+CONFLICT (content): Merge conflict in tests/v04-browser.cjs

@@ -85,7 +85,7 @@ fs.mkdirSync(output, { recursive: true });
         await page.locator("#edit-form .save").click();
         assert.match(
           await page.locator(".meal .metric").innerText(),
-          /完整食用尚無資料/,
+          /有紀錄但數值／本人份量未知/,
         );
         assert.match(
           await page.locator(".spending .metric").innerText(),
@@ -94,10 +94,11 @@ fs.mkdirSync(output, { recursive: true });
         await page.locator(".meal summary").click();
         await page.locator(".meal [data-edit]").click();
         await page.locator("[name=status]").selectOption("吃完");
+        await page.locator("[name=consumedQuantity]").fill("1");
         await page.locator("#edit-form .save").click();
         assert.match(
           await page.locator(".meal .metric").innerText(),
-          /1 筆吃完/,
+          /1 餐本人已確認食用/,
         );
         await page.locator("[data-add=sunlight]").click();
         await page.locator("[name=source]").fill("Apple Watch（合成）");
@@ -115,7 +116,7 @@ fs.mkdirSync(output, { recursive: true });
         await page.reload();
         assert.match(
           await page.locator(".meal .metric").innerText(),
-          /1 筆吃完/,
+          /1 餐本人已確認食用/,
         );
         assert.equal(await page.locator(".record-details[open]").count(), 0);
         assert.equal(

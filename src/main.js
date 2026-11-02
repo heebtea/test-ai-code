@@ -1,6 +1,7 @@
 import "./style.css";
+import { addStatFields, normalizeStatFields } from "./stat-fields.js";
 import { openSleepDetail } from "./sleep-detail.js";
-import { openMetricDetail, metricTypes } from "./metric-detail.js";
+import { openMetricDetail, metricTypes, metricDay } from "./metric-detail.js";
 import { timeline, drawTemplateJournal, journalSections } from "./journal.js";
 import {
   baseTemplate,
@@ -29,7 +30,6 @@ import {
   remove,
   rows,
   sum,
-  expenses,
   liquidIntake,
   parseBackup,
   merge,
@@ -110,6 +110,7 @@ function detail(r) {
     r.type === "meal"
       ? `訂購日：${r.orderDate ?? "尚無資料"} · 付款：${r.paid === null ? "未確認" : r.paid ? "已付款" : "未付款"} · 付款日：${r.paymentDate ?? "尚無資料"} · 用餐：${r.startTime || "尚無資料"}–${r.endTime || "尚無資料"}`
       : "",
+    r.type === "spending" ? `${({purchase:"購買",refund:"退費",reimbursement:"回補"})[r.transactionKind || "purchase"]} · 付款／入帳日：${r.paymentDate === undefined ? r.date : r.paymentDate || "未知"}` : "",
     r.status,
     r.type === "coffee"
       ? `開始：${r.startTime || "尚無資料"} · 結束：${r.endTime || "尚無資料"}`
@@ -144,7 +145,7 @@ function render() {
   app.innerHTML = `<div class="shell"><header class="topbar"><div class="brand">✳ SECOND BRAIN LITE v0.4</div><button id="theme" class="theme-toggle">${theme === "dark" ? "淺色" : "深色"}模式</button></header><main><div class="intro"><div><h1>Project Second Brain</h1><p>生活小誌 · 留下今天的一點線索。</p></div></div><div class="notice">紀錄與照片只存於此瀏覽器，不上傳或同步。JSON 不含照片與模板參考圖，請另外保留原檔。</div><p id="message" role="status">${esc(message)}</p><div class="toolbar"><button id="export">匯出 JSON 備份</button><label class="file-button">匯入 JSON 備份<input id="import" type="file" accept="application/json,.json" ${blocked ? "disabled" : ""}></label>${blocked ? '<button id="raw">匯出原始儲存內容</button>' : ""}</div><div class="section-heading"><h2>每日總覽</h2><div class="date-nav"><button id="prev" aria-label="前一天">‹</button><input id="date" type="date" min="1900-01-01" max="2199-12-31" value="${date}" aria-label="選擇日期"><button id="next" aria-label="後一天">›</button></div></div><div class="dashboard"><section class="card hydration"><div class="card-head"><h2>今日已飲用總量</h2></div><button class="card-toggle" aria-expanded="false"><span class="metric">${fmt(liquids.value, "mL 已飲用")}${liquids.unknown ? `（${liquids.unknown} 筆容量未知）` : ""}</span><span class="card-cue">查看白開水、咖啡及其他飲品明細 ↗</span></button><details class="record-details"><summary>分類明細</summary><p>白開水：${fmt(liquids.breakdown.water.value, "mL")} · 咖啡：${fmt(liquids.breakdown.coffee.value, "mL")} · 其他飲品：${fmt(liquids.breakdown.beverage.value, "mL")}</p><p>${liquids.pending} 筆飲用中／未確認，未計入總量；已飲用但容量未知者也不推算。每筆紀錄只計一次。</p></details></section>${types
     .filter((type) => type !== "event" && type !== "journal")
     .map((type) => {
-      const rs = rows(data, date, type);
+      const rs = type === "spending" ? metricDay(data,date,type).items : rows(data, date, type);
       let summary = "尚無資料";
       if (type === "sleep") summary = total(rs, "minutes", "分鐘");
       if (type === "water") summary = total(rs.filter((r) => r.status === "已飲用"), "volume", "mL 已飲用");
@@ -155,24 +156,13 @@ function render() {
           "volume",
           "mL 已飲用",
         );
-      if (type === "activity")
-        summary = total(
-          rs.filter((r) => r.status === "已完成"),
-          "steps",
-          "步已完成",
-        );
       if (type === "sunlight") summary = total(rs, "minutes", "分鐘");
-      if (type === "meal" && rs.length)
-        summary = `${rs.some((r) => r.status === "吃完") ? rs.filter((r) => r.status === "吃完").length + " 筆吃完" : "完整食用尚無資料"} · ${rs.filter((r) => r.status === "部分").length} 筆部分 · ${rs.filter((r) => r.status === "未確認").length} 筆未確認`;
-      if (type === "spending")
-        summary = total(expenses(data, date), "amount", "NT$");
+      if (type === "activity") summary = fmt(metricDay(data,date,type).value,"步已確認（排除重疊）");
+      if (type === "meal" && rs.length) { const m=metricDay(data,date,type); summary=m.value===null?m.state:fmt(m.value,"餐本人已確認食用"); }
+      if (type === "spending") summary = fmt(metricDay(data,date,type).value,"NT$ 已確認淨支出");
       return `<section class="card ${type}"><div class="card-head"><h2>${names[type]}</h2>${type === "sleep" ? '<button type="button" class="sleep-view" data-sleep-view>睡眠圖</button>' : metricTypes.includes(type) ? `<button type="button" class="metric-view" data-metric-view="${type}">日／週／月</button>` : ""}<button data-add="${type}" ${blocked ? "disabled" : ""}>新增</button></div><button class="card-toggle" aria-expanded="false" aria-label="展開${names[type]}明細"><span class="metric">${summary}</span><span class="card-cue">查看紀錄 ↗</span></button><details class="record-details"><summary>紀錄明細（${rs.length}）</summary>${type === "spending" ? "<p>依付款日計算餐點、購買日計算咖啡，加上已付款花費。餐點與咖啡請勿再記一筆花費；券只在購券時記帳。付款日期未知的餐點不推定為今日支出。</p>" : ""}${
         type === "activity"
-          ? `<p>已完成時間：${total(
-              rs.filter((r) => r.status === "已完成"),
-              "minutes",
-              "分鐘",
-            )}</p>`
+          ? `<p>已確認時間（排除重疊）：${fmt(metricDay(data,date,type).extra.minutes.value,"分鐘")}</p>`
           : ""
       }<ul>${rs.map((r) => `<li><p>${esc(detail(r))}</p><button data-edit="${r.id}" ${blocked ? "disabled" : ""}>編輯</button><button data-delete="${r.id}" ${blocked ? "disabled" : ""}>刪除</button></li>`).join("")}</ul>${rs.length ? "" : "<p>尚無資料</p>"}</details></section>`;
     })
@@ -200,7 +190,7 @@ function render() {
     button.onclick = () => openSleepDetail(document.querySelector("#sleep-dialog"), data, date);
   });
   document.querySelectorAll("[data-metric-view]").forEach((button) => {
-    button.onclick = () => openMetricDetail(document.querySelector("#metric-dialog"), data, date, button.dataset.metricView);
+    button.onclick = () => openMetricDetail(document.querySelector("#metric-dialog"), () => { if(blocked) throw Error(message); return loadRecords(storage); }, date, button.dataset.metricView);
   });
   document.querySelectorAll(".card-toggle").forEach(
     (button) =>
@@ -706,11 +696,16 @@ function edit(type, record) {
     .join(
       "",
     )}${type === "meal" ? "" : `<label>時間<input type="time" name="time" value="${r.time}"></label>`}<label>狀態<select name="status">${statuses[type].map((s) => `<option ${r.status === s ? "selected" : ""}>${s}</option>`).join("")}</select></label>${type === "coffee" ? `<label>付款方式<select name="payment"><option value="purchase" ${r.payment === "purchase" ? "selected" : ""}>購買</option><option value="voucher" ${r.payment === "voucher" ? "selected" : ""}>兌換券（不重複記帳）</option></select></label>` : ""}<label>說明<input name="note" maxlength="500" value="${esc(r.note)}"></label></div><p class="error" role="alert"></p><div class="dialog-actions"><button type="button" id="cancel">取消</button><button class="save">儲存</button></div></form>`;
+  addStatFields(d.querySelector("#form-fields"), r);
+  if(type === "coffee") d.querySelector("[name=payment]").onchange = e => {
+    const volume=d.querySelector("[name=volume]");
+    if(e.target.value === "voucher" && volume.value === "") volume.value="480";
+  };
   d.querySelector("#cancel").onclick = () => d.close();
   d.querySelector("form").onsubmit = (e) => {
     e.preventDefault();
     try {
-      const values = Object.fromEntries(new FormData(e.target));
+      const values = normalizeStatFields(Object.fromEntries(new FormData(e.target)));
       for (const k of Object.keys(fields[type]))
         values[k] = values[k].trim() === "" ? null : Number(values[k]);
       if (type === "sleep") {
@@ -729,6 +724,7 @@ function edit(type, record) {
         values.paymentDate = values.paymentDate || null;
         if(type === "meal") values.orderDate = values.orderDate || null;
       }
+      if (type === "spending") values.paymentDate = values.paymentDate || null;
       if (type === "coffee") values.purchaseDate = values.purchaseDate || null;
       save(upsert(data, { ...r, ...values }));
       d.close();
