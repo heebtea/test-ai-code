@@ -366,12 +366,9 @@ export function openMetricDetail(dialog, source, anchorDate, metricType) {
         row(
           compare,
           w.start.slice(5) + "～" + w.end.slice(5),
-          fmt(w.value, metricType) +
-            " · 平均 " +
-            fmt(w.average, metricType) +
-            " · 有效 " +
-            w.validDays +
-            " 天",
+          !w.observedDays ? "本機無紀錄 · 有效 0 天" :
+          !w.validDays ? "有紀錄，尚無可確認數值 · 有效 0 天" :
+          fmt(w.value, metricType) + " · 平均 " + fmt(w.average, metricType) + " · 有效 " + w.validDays + " 天",
         );
       dialog.append(compare);
     }

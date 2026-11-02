@@ -167,6 +167,7 @@ async function snapshot(page, name) {
         await page.locator("#metric-dialog").innerText(),
         /每週比較/,
       );
+      assert.match(await page.locator(".metric-week-compare").innerText(), /本機無紀錄 · 有效 0 天/);
       await snapshot(page, "stats-v2-" + width + "-month");
       await page.locator(".metric-week-compare").scrollIntoViewIfNeeded();
       await page.screenshot({path: "test-results/stats-v2-"+width+"-month-comparison.png"});

@@ -9,5 +9,5 @@ npm warn Unknown env config "http-proxy". This will stop working in the next maj
 
  Test Files  8 passed (8)
       Tests  55 passed (55)
-   Start at  12:46:48
-   Duration  938ms (tests 46%, environment 43%, transform 7%, import 3%, worker 1%)
+   Start at  12:54:13
+   Duration  980ms (tests 46%, environment 45%, transform 5%, import 3%, worker 1%)
