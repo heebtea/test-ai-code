@@ -859,3 +859,30 @@ dialog p {
   .card-head { flex-wrap: wrap; }
   .card-head .metric-view { font-size: 11px; padding: 5px 7px; }
 }
+/* Statistics V2: touch targets and readable values; sleeping detail styles remain unchanged. */
+#metric-dialog .metric-date-row{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:6px}
+#metric-dialog .metric-date-row input{width:100%;max-width:none;box-sizing:border-box;min-width:0}
+#metric-dialog button{min-height:44px;touch-action:manipulation}
+#metric-dialog .metric-date-row button,#metric-dialog .metric-refresh,#metric-dialog .metric-record-list button{background:#303640;color:#e7edf7;border:1px solid #566477;border-radius:8px;padding:8px}
+#metric-dialog .metric-refresh{margin-bottom:14px}
+#metric-dialog button.metric-chart-column{padding:4px 0;border:0;background:transparent;color:#e7edf7;min-width:44px;border-radius:5px}
+#metric-dialog button.metric-chart-column[aria-pressed=true]{outline:2px solid #91c4ff;outline-offset:-2px;background:#29364a}
+#metric-dialog .metric-chart-columns{min-width:350px;height:210px}
+#metric-dialog .metric-chart-columns.is-month{min-width:1500px}
+#metric-dialog .metric-chart-rail{min-height:0;display:flex;width:100%}
+#metric-dialog .metric-chart-bar{display:block}
+#metric-dialog .metric-chart-bar.is-negative{background:#ffb38b}
+#metric-dialog .metric-bar-value{font-size:11px;margin:0 0 7px;overflow-wrap:anywhere}
+#metric-dialog .metric-week-compare{margin:20px 0}
+#metric-dialog .metric-detail-row{align-items:flex-start;flex-wrap:wrap}
+#metric-dialog .metric-detail-row strong{overflow-wrap:anywhere;max-width:100%}
+#metric-dialog .metric-load-error{padding:14px;border:1px solid #ffb38b;border-radius:8px;color:#ffcfb5;line-height:1.7}
+#metric-dialog :focus-visible{outline:2px solid #b6d7ff;outline-offset:2px}
+
+/* Touch targets remain available for zero and missing measurements. */
+#sleep-dialog button.sleep-trend-column { min-width:44px; padding:4px 0; border:0; background:transparent; color:inherit; border-radius:5px; }
+#sleep-dialog button.sleep-trend-column[aria-pressed=true] { outline:2px solid #91c4ff; outline-offset:-2px; background:#29364a; }
+.sleep-selected-detail, .sleep-record-list { overflow-wrap:anywhere; }
+.sleep-selected-detail:empty { display:none; }
+.sleep-selected-detail button { min-height:44px; }
+.sleep-record { border-top:1px solid #545968; padding:8px 0; }

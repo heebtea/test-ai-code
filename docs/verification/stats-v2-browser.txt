@@ -1,0 +1,26 @@
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+
+> project-second-brain-lite@0.4.0 test:browser
+> node tests/browser.cjs && node tests/v03-browser.cjs && node tests/v04-browser.cjs && node tests/template-browser.cjs && node tests/metric-browser.cjs && node tests/stats-v2-browser.cjs
+
+PASS 1440px: empty/CRUD/correction/date/theme/reload/export/import cancel-confirm-repeat-invalid/no outbound/errors/overflow
+PASS 390px: empty/CRUD/correction/date/theme/reload/export/import cancel-confirm-repeat-invalid/no outbound/errors/overflow
+PASS synthetic liquid intake: pending excluded, confirmed counted once, editable water
+PASS Chromium localStorage read failure
+Chromium 153.0.8010.0: 2 viewport suites passed
+PASS v0.3 390px light: legacy import, meal/sunlight CRUD, null, paid/partial separation, conflict, reload, layout, screenshots
+PASS v0.3 390px dark: legacy import, meal/sunlight CRUD, null, paid/partial separation, conflict, reload, layout, screenshots
+PASS v0.3 1440px light: legacy import, meal/sunlight CRUD, null, paid/partial separation, conflict, reload, layout, screenshots
+PASS v0.3 1440px dark: legacy import, meal/sunlight CRUD, null, paid/partial separation, conflict, reload, layout, screenshots
+Chrome 153.0.8010.0
+PASS v0.4 390px light: card, timeline, photo persistence, PNG, JSON, date, layout
+PASS v0.4 390px dark: card, timeline, photo persistence, PNG, JSON, date, layout
+PASS v0.4 1440px light: card, timeline, photo persistence, PNG, JSON, date, layout
+PASS v0.4 1440px dark: card, timeline, photo persistence, PNG, JSON, date, layout
+PASS template 390px light: image formats, palette, mapping, save, reload, restore, real records, PNG and privacy
+PASS template 390px dark: image formats, palette, mapping, save, reload, restore, real records, PNG and privacy
+PASS template 1440px light: image formats, palette, mapping, save, reload, restore, real records, PNG and privacy
+PASS template 1440px dark: image formats, palette, mapping, save, reload, restore, real records, PNG and privacy
+Seven-category daily/weekly/monthly browser smoke passed
+PASS Statistics V2 390px: day/week/month/empty/error screenshots, meal self-vs-family, chart drilldown, previous/next month, read-only refresh, same-ID update, refund date, voucher default override, sleep preserved, no outbound or overflow
+PASS Statistics V2 1440px: day/week/month/empty/error screenshots, meal self-vs-family, chart drilldown, previous/next month, read-only refresh, same-ID update, refund date, voucher default override, sleep preserved, no outbound or overflow

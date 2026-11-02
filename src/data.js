@@ -1,3 +1,4 @@
+import { statKeys, statVersion, validateStatFields } from "./stat-fields.js";
 export const STORAGE_KEY = "second-brain-lite-v2";
 export const THEME_KEY = "second-brain-theme";
 export const types = [
@@ -14,7 +15,7 @@ export const types = [
 ];
 export const empty = () => ({ version: 5, records: [] });
 export function localDate(d = new Date()) {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  return new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Taipei',year:'numeric',month:'2-digit',day:'2-digit'}).format(d);
 }
 export function validDate(s) {
   return (
@@ -27,9 +28,9 @@ export function validDate(s) {
   );
 }
 export function shiftDate(s, n) {
-  const d = new Date(s + "T12:00:00");
-  d.setDate(d.getDate() + n);
-  return localDate(d);
+  const d = new Date(s + "T00:00:00Z");
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0,10);
 }
 export const fields = {
   sleep: { minutes: 1440, deep: 1440, rem: 1440, score: 100 },
@@ -63,6 +64,7 @@ export function validateRecord(r) {
     throw Error("紀錄格式錯誤");
   const allowed = [
     "id",
+    ...statKeys(r.type),
     "date",
     "type",
     "status",
@@ -114,6 +116,7 @@ export function validateRecord(r) {
       ))
   )
     throw Error("請填寫小誌內容，每個欄位最多 500 字");
+  validateStatFields(r, validDate);
   const timeValid = (v) =>
     typeof v === "string" && (v === "" || /^([01]\d|2[0-3]):[0-5]\d$/.test(v));
   if (
@@ -231,12 +234,12 @@ export function validateRecord(r) {
 export function validate(data) {
   if (
     !data ||
-    ![2, 3, 4, 5, 6].includes(data.version) ||
+    ![2, 3, 4, 5, 6, 7, 8].includes(data.version) ||
     !Array.isArray(data.records) ||
     Object.keys(data).some((k) => !["version", "records"].includes(k)) ||
     data.records.length > 10000
   )
-    throw Error("僅接受 v2 / v3 / v4 / v5 / v6 備份（最多 10000 筆）");
+    throw Error("僅接受 v2–v8 備份（最多 10000 筆）");
   const ids = new Set();
   for (const r of data.records) {
     if (data.version === 2 && ["meal", "sunlight"].includes(r.type))
@@ -251,6 +254,7 @@ export function validate(data) {
     if (data.version < 5 && r.type === "journal")
       throw Error("小誌內容請使用 v5 備份");
     if (data.version < 6 && ["draft", "beverage"].includes(r.type)) throw Error("草稿請使用 v6 備份");
+    if (statVersion(r) > data.version) throw Error("新增統計欄位需要較新版備份格式");
     validateRecord(r);
     if (ids.has(r.id)) throw Error("備份含重複 ID");
     ids.add(r.id);
@@ -273,7 +277,7 @@ export function upsert(data, r) {
   if (old && old.type !== r.type) throw Error("不可變更既有 ID 的類別");
   return validate({
     ...data,
-    version: data.version === 6 || ["draft", "beverage"].includes(r.type) ? 6 : 5,
+    version: Math.max(data.version, statVersion(r), ["draft", "beverage"].includes(r.type) ? 6 : 5),
     records: [...data.records.filter((x) => x.id !== r.id), r],
   });
 }
@@ -296,7 +300,7 @@ export function merge(data, incoming) {
     )
       conflicts++;
   }
-  return { data: validate({ version: data.version === 6 || incoming.version === 6 ? 6 : 5, records }), added, conflicts };
+  return { data: validate({ version: Math.max(5, data.version, incoming.version), records }), added, conflicts };
 }
 export function loadRecords(storage) {
   const s = storage.getItem(STORAGE_KEY);
@@ -320,17 +324,18 @@ export function sum(rs, key) {
     unknown: rs.length - known.length,
   };
 }
-export function expenses(data, date) {
-  return data.records.filter(
-    (r) =>
-      (r.type === "spending" && r.date === date && r.status === "已付款") ||
-      (r.type === "coffee" &&
-        r.payment === "purchase" &&
-        (r.purchaseDate === undefined ? r.date : r.purchaseDate) === date) ||
-      (r.type === "meal" && r.paid === true && r.paymentDate === date) ||
-      (r.type === "beverage" && r.paid === true && r.paymentDate === date),
-  );
+export function transactionDate(r) {
+  if(r.type==='coffee')return r.purchaseDate===undefined?r.date:r.purchaseDate;
+  if(['meal','beverage'].includes(r.type))return r.paymentDate;
+  if(r.type==='spending')return r.paymentDate===undefined?r.date:r.paymentDate;
+  return null;
 }
+export function isPaid(r) {
+  return r.type==='spending'?r.status==='已付款':r.type==='coffee'?r.payment==='purchase':r.paid===true;
+}
+export function transactions(data,date){return data.records.filter(r=>['spending','coffee','meal','beverage'].includes(r.type)&&isPaid(r)&&transactionDate(r)===date);}
+// Existing overview/journal purchase totals stay separate from refunds and reimbursements.
+export function expenses(data,date){return transactions(data,date).filter(r=>!r.transactionKind||r.transactionKind==='purchase');}
 
 /** Count only confirmed consumed liquids; the same record is counted once. */
 export function liquidIntake(data, date) {
