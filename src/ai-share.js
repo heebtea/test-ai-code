@@ -36,8 +36,8 @@ const safeUnits = ['個', '份', '杯', '瓶', '碗', '盤', '盒', '顆', '片'
 const moneyTypes = new Set(['spending', 'meal', 'beverage', 'coffee']);
 const pick = (record, keys) => Object.fromEntries(keys.filter(k => Object.hasOwn(record, k)).map(k => [k, record[k]]));
 
-function sourceKind(record) {
-  const source = record.provenance?.trim() || record.source?.trim();
+function sourceKind(value) {
+  const source = value?.trim();
   if (!source) return null;
   if (['手動輸入', '手動新增'].includes(source)) return 'manual';
   if (source === 'Apple Watch') return 'apple-watch';
@@ -47,7 +47,9 @@ function sourceKind(record) {
 
 function metadata(record) {
   return {
-    sourceKind: sourceKind(record),
+    sourceKind: sourceKind(record.provenance) ?? sourceKind(record.source),
+    ...(record.provenance?.trim() && record.source?.trim()
+      ? { measurementSourceKind: sourceKind(record.source) } : {}),
     updatedAt: record.updatedAt ?? null,
     correctedAt: record.correctedAt ?? null,
   };
@@ -167,7 +169,7 @@ export function openAiShare(data, date) {
     '<p>日期：<strong class="ai-share-date"></strong>。只會分享你勾選的類別，',
     '不會改動 Lite 原始紀錄。</p>',
     '<label>日期範圍 <select id="ai-range"><option value="day">所選單日</option><option value="custom">自訂區間</option><option value="week">最近七天（含今天）</option><option value="month">當月</option></select></label>',
-    '<div class="ai-dates"><label>開始 <input id="ai-from" type="date"></label><label>結束 <input id="ai-to" type="date"></label></div>',
+    '<div class="ai-dates"><label>開始 <input id="ai-from" type="date" min="1900-01-01" max="2199-12-31"></label><label>結束 <input id="ai-to" type="date" min="1900-01-01" max="2199-12-31"></label></div>',
     '<label><input id="ai-sensitive" type="checkbox"> 包含名稱、備註、原始來源文字及私人內容（預設關閉）</label>',
     '<div class="ai-share-types" role="group" aria-label="分享的資料類別"></div>',
     '<p class="ai-share-warning">⚠️ 這些可能是個人資料。',
@@ -214,19 +216,33 @@ export function openAiShare(data, date) {
   from.value = to.value = date;
   let currentSnapshot;
   function snapshot() { return currentSnapshot; }
-  dialog.querySelector('#ai-range').onchange = e => {
+  const rangeMode = dialog.querySelector('#ai-range');
+  rangeMode.onchange = e => {
     if(e.target.value !== 'custom') {
       const range = shareRange(e.target.value, e.target.value === 'day' ? date : localDate());
       from.value = range.from; to.value = range.to;
     }
     refresh();
   };
-  [from,to,sensitive].forEach(el => el.addEventListener('change', refresh));
+  for (const input of [from, to]) {
+    input.addEventListener('change', () => {
+      rangeMode.value = 'custom';
+      refresh();
+    });
+  }
+  sensitive.addEventListener('change', refresh);
   function refresh() {
     const types = selected();
     let snap;
     try { snap = makeSnapshot(data,{from:from.value,to:to.value,selected:types,includeSensitive:sensitive.checked}); }
-    catch(e) { currentSnapshot = null; preview.value = ''; status.textContent = e.message; dialog.querySelectorAll('[data-share-action]').forEach(b => b.disabled = true); return; }
+    catch (error) {
+      currentSnapshot = null;
+      preview.value = '';
+      counter.textContent = '';
+      status.textContent = error.message;
+      dialog.querySelectorAll('[data-share-action]').forEach(button => button.disabled = true);
+      return;
+    }
     currentSnapshot = snap;
     dialog.querySelector('.ai-share-date').textContent = from.value === to.value ? from.value : from.value + '～' + to.value;
     const text = makeChatText(snap, from.value + '～' + to.value);

@@ -40,8 +40,11 @@ const comparable=x=>{const y=structuredClone(x);delete y.createdAt;delete y.appV
    await p.locator('#date').fill(day);await p.locator('#date').dispatchEvent('change');
    assert.equal(await p.locator('html').getAttribute('data-theme'),theme);
    assert.match(await p.locator('.hydration .metric').innerText(),/350/);
-   assert.match(await p.locator('.spending .metric').innerText(),/125/);
-   await p.locator('.spending summary').click();assert.match(await p.locator('.spending').innerText(),/105/);assert.match(await p.locator('.spending').innerText(),/退費/);
+   assert.match(await p.locator('.spending .metric').innerText(), /105 NT\$ 已確認淨支出/);
+   await p.locator('.spending summary').click();
+   const spending = await p.locator('.spending').innerText();
+   assert.match(spending, /購買：125 NT\$/);
+   assert.match(spending, /退費：20 NT\$/);
    await p.locator('.spending summary').click();
    await p.locator('#prev').click();assert.equal(await p.locator('.water .metric').innerText(),'尚無資料');await p.locator('#next').click();
    await p.locator('.meal summary').click();await p.locator('.meal [data-edit]').click();

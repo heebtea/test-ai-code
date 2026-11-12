@@ -63,6 +63,13 @@ describe("v8 bridge snapshot", () => {
     expect(nameOptIn.records[0].name).toBe('PRIVATE_TEST_EVENT');
     const nested = structuredClone(data);
     nested.records.find(r => r.id === 'test-sleep').segments[0].photo = 'PRIVATE_TEST_PHOTO';
+    nested.records.push({
+      id: 'test-sunlight', type: 'sunlight', date: from, time: '12:30', status: '已記錄',
+      minutes: 25, note: '', source: 'Apple Watch', provenance: '手動輸入',
+    });
+    expect(makeSnapshot(nested, { from, to }).records.at(-1)).toMatchObject({
+      sourceKind: 'manual', measurementSourceKind: 'apple-watch',
+    });
     expect(JSON.stringify(makeSnapshot(nested, { from, to, includeSensitive: true }))).not.toContain('PRIVATE_TEST_PHOTO');
   });
 

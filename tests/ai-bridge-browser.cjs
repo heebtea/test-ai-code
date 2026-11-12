@@ -35,9 +35,9 @@ const server = spawn(process.execPath, [
     await page.locator('#date').fill(from);
     await page.locator('#date').dispatchEvent('change');
     await page.locator('#ai-share').tap();
-    await page.locator('#ai-range').selectOption('custom');
     await page.locator('#ai-to').fill(to);
     await page.locator('#ai-to').dispatchEvent('change');
+    assert.equal(await page.locator('#ai-range').inputValue(), 'custom');
     const meal = page.locator('.ai-share-types input[value=meal]');
     await meal.uncheck();
     assert.ok(!(await page.locator('#ai-share-preview').inputValue()).includes('"mealType"'));
