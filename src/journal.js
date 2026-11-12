@@ -1,4 +1,4 @@
-import { rows, sum, expenses, liquidIntake } from "./data.js";
+import { rows, sum, expenses, cashflow, liquidIntake } from "./data.js";
 import { renderJournalTemplate } from "./journal-layout.js";
 export const names = {
   sleep: "睡眠",
@@ -68,9 +68,16 @@ export function journalSections(data, date) {
   if (meals.length)
     result.push({
       title: "餐點",
-      value: meals.map((r) => `${r.name}（${r.status}）`).join("、"),
+      value: meals.map((r) => `${r.startTime || r.time || "時間未知"} ${r.name}（${r.status}）${r.quantity != null ? ` 購買${r.quantity}${r.unit || ""}` : ""}${r.consumedQuantity != null ? ` 本人${r.consumedQuantity}${r.unit || ""}` : ""}${r.familyQuantity != null ? ` 家人${r.familyQuantity}${r.unit || ""}` : ""}${r.remainingQuantity != null ? ` 剩餘${r.remainingQuantity}${r.unit || ""}` : ""}`).join("\n"),
     });
   add("已付款花費", expenses(data, date), "amount", "NT$");
+  const flow = cashflow(data,date);
+  for (const [kind,title] of [['purchase','購買明細'],['refund','退費明細'],['reimbursement','回補明細']]) {
+    if (flow.groups[kind].length) result.push({title,value:flow.groups[kind].map(r=>`${r.time || '時間未知'} ${r.name || r.note || names[r.type]}：${r.amount === null ? '金額未知' : r.amount+' NT$'}`).join('\n')});
+  }
+  if (flow.knownNet !== null) result.push({title:'已確認淨支出',value:`${flow.knownNet} NT$（${flow.unknown} 筆金額未知）`});
+  const drinks=data.records.filter(r=>r.date === date && ['coffee','beverage','water'].includes(r.type));
+  if(drinks.length)result.push({title:'飲品明細',value:drinks.map(r=>`${r.startTime || r.time || '時間未知'} ${r.name || names[r.type]} ${r.volume ?? '容量未知'}${r.volume != null?' mL':''}（${r.status}）`).join('\n')});
   for (const r of rows(data, date, "journal"))
     for (const [key, label] of [
       ["theme", "每日主題"],

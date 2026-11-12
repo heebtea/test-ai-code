@@ -58,7 +58,7 @@ export function sleepTrend(data, date, period) {
   return Array.from({ length: n }, (_, i) => {
     const d = shiftDay(date, i - n + 1);
     const day = sleepDay(data, d);
-    return { label: d.slice(5).replace("-", "/"), average: day.minutes, days: day.minutes === null ? 0 : 1 };
+    return { date: d, label: d.slice(5).replace("-", "/"), average: day.minutes, days: day.minutes === null ? 0 : 1 };
   });
 }
 function duration(minutes) {
@@ -151,7 +151,7 @@ function exactTimeline(container, segments) {
   panel.append(svg, el("p", "sleep-caption", "僅繪製有提供起迄時間的實際階段；空白區段代表沒有資料。"));
   container.append(panel);
 }
-function trends(container, data, date, period) {
+function trends(container, data, date, period, select) {
   const records = sleepTrend(data, date, period);
   const values = records.filter((r) => r.average !== null).map((r) => r.average);
   const mean = values.length ? Math.round(values.reduce((a, b) => a + b, 0) / values.length) : null;
@@ -163,9 +163,16 @@ function trends(container, data, date, period) {
   container.append(stat);
   const scroll = el("div", "sleep-trend-scroll");
   const barSet = el("div", "sleep-trend-bars");
-  barSet.style.minWidth = period === "month" ? "660px" : "auto";
+  barSet.style.minWidth = period === "month" ? "1500px" : "350px";
   for (const row of records) {
-    const col = el("div", "sleep-trend-column");
+    const col = el(row.date ? "button" : "div", "sleep-trend-column");
+    if (row.date) {
+      col.type = "button";
+      col.dataset.sleepDay = row.date;
+      col.setAttribute("aria-pressed", "false");
+      col.setAttribute("aria-label", row.date + "：" + duration(row.average));
+      col.onclick = () => select(row.date);
+    }
     const rail = el("div", "sleep-trend-rail");
     const bar = el("div", "sleep-trend-bar" + (row.average === null ? " sleep-trend-missing" : ""));
     const pct = row.average === null ? 0 : Math.min(100, Math.max(2, row.average / 720 * 100));
@@ -179,6 +186,34 @@ function trends(container, data, date, period) {
   scroll.append(barSet);
   container.append(scroll);
   container.append(el("p", "sleep-caption", period === "sixMonths" ? "每根柱為該月有紀錄日期的平均睡眠時數。" : "每日柱狀圖；沒有記錄的日期以空白顯示，不補造數據。"));
+}
+function dayDetails(container, data, date) {
+      const day = sleepDay(data, date);
+      const overview = el("section", "sleep-overview");
+      overview.append(el("span", "", "總睡眠時間"));
+      overview.append(el("strong", "", duration(day.minutes)));
+      overview.append(el("small", "", date + " · 睡眠分數 " + (day.score === null ? "未記錄" : day.score)));
+      container.append(overview);
+      if (!day.count) {
+        container.append(el("p", "sleep-empty", "這一天沒有睡眠紀錄。可返回首頁新增睡眠資料。"));
+      } else {
+        if (day.segments.length) exactTimeline(container, day.segments);
+        else container.append(el("p", "sleep-caption", "目前只有各階段總分鐘數，沒有真實起迄時間，因此不會顯示虛構的逐時曲線。"));
+        dayDistribution(container, day);
+      }
+      const records = data.records.filter(r => r.type === "sleep" && r.date === date);
+      const list = el("section", "sleep-record-list");
+      list.append(el("h3", "", "逐筆明細（" + records.length + "）"));
+      for (const r of records) {
+        const item = el("article", "sleep-record");
+        item.append(el("p", "", [r.date, r.time || "時間未知", r.status,
+          "總睡眠 " + duration(r.minutes), "分數 " + (r.score ?? "未記錄"),
+          r.note, "ID " + r.id].filter(Boolean).join(" · ")));
+        for (const stage of stageOrder) stageRow(item, stage, validNum(r[stage]) ? r[stage] : null);
+        for (const segment of r.segments || []) item.append(el("p", "", stageNames[segment.stage] + "：" + segment.start + " ～ " + segment.end));
+        list.append(item);
+      }
+      container.append(list);
 }
 export function openSleepDetail(dialog, data, selectedDate) {
   let active = "day";
@@ -217,21 +252,27 @@ export function openSleepDetail(dialog, data, selectedDate) {
     selectRow.append(input);
     dialog.append(selectRow);
     if (active === "day") {
-      const day = sleepDay(data, anchor);
-      const overview = el("section", "sleep-overview");
-      overview.append(el("span", "", "總睡眠時間"));
-      overview.append(el("strong", "", duration(day.minutes)));
-      overview.append(el("small", "", anchor + " · 睡眠分數 " + (day.score === null ? "未記錄" : day.score)));
-      dialog.append(overview);
-      if (!day.count) {
-        dialog.append(el("p", "sleep-empty", "這一天沒有睡眠紀錄。可返回首頁新增睡眠資料。"));
-      } else {
-        if (day.segments.length) exactTimeline(dialog, day.segments);
-        else dialog.append(el("p", "sleep-caption", "目前只有各階段總分鐘數，沒有真實起迄時間，因此不會顯示虛構的逐時曲線。"));
-        dayDistribution(dialog, day);
-      }
+      dayDetails(dialog, data, anchor);
     } else {
-      trends(dialog, data, anchor, active);
+      const detail = el("section", "sleep-selected-detail");
+      detail.setAttribute("aria-live", "polite");
+      const select = date => {
+        for (const b of dialog.querySelectorAll("[data-sleep-day]")) b.setAttribute("aria-pressed", String(b.dataset.sleepDay === date));
+        detail.replaceChildren();
+        const back = el("button", "", "返回整體趨勢");
+        back.type = "button";
+        back.onclick = () => {
+          const selected = dialog.querySelector('[data-sleep-day][aria-pressed="true"]');
+          detail.replaceChildren();
+          selected?.setAttribute("aria-pressed", "false");
+          selected?.focus();
+        };
+        detail.append(el("h3", "", date + " · 當日睡眠明細"), back);
+        dayDetails(detail, data, date);
+        detail.scrollIntoView?.({block: "nearest"});
+      };
+      trends(dialog, data, anchor, active, select);
+      dialog.append(detail);
     }
   };
   paint();

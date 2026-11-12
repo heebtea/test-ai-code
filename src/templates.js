@@ -1,3 +1,4 @@
+import { guardedWrite } from "./storage-guard.js";
 export const sectionNames = {
   overview: "日期與主題",
   health: "睡眠、活動、日照",
@@ -14,7 +15,7 @@ export const baseTemplate = () => ({
   background: "#f6f3eb",
   accent: "#386a58",
   font: "sans",
-  columns: 2,
+  columns: 3,
   illustration: "✳",
   mapping: [...sectionKeys],
   image: null,
@@ -49,9 +50,9 @@ async function transact(mode, fn) {
   });
 }
 export const listTemplates = () => transact("readonly", (s) => s.getAll());
-export const putTemplate = (t) => transact("readwrite", (s) => s.put(t));
+export const putTemplate = (t) => guardedWrite(() => transact("readwrite", (s) => s.put(t)));
 export const deleteTemplate = (id) =>
-  transact("readwrite", (s) => s.delete(id));
+  guardedWrite(() => transact("readwrite", (s) => s.delete(id)));
 export async function palette(file) {
   const bitmap = await createImageBitmap(file);
   try {
@@ -88,7 +89,7 @@ export function validateTemplate(t) {
     throw Error("顏色格式無效");
   if (
     !["sans", "serif"].includes(t.font) ||
-    ![1, 2].includes(t.columns) ||
+    ![1, 2, 3].includes(t.columns) ||
     !["✳", "☀", "✦", "○", ""].includes(t.illustration)
   )
     throw Error("模板樣式無效");

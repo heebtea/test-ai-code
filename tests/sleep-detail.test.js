@@ -67,3 +67,26 @@ it("accepts only timezone-aware non-overlapping factual segments", () => {
   expect(() => validateRecord({ ...detailed, segments: [detailed.segments[0], { ...detailed.segments[0] }] })).toThrow();
   expect(() => validateRecord({ ...detailed, core: 300 })).toThrow();
 });
+it("selects and reselects sleep days while preserving the trend and original records", () => {
+  const data = { version: 5, records: [legacy] }, bytes = JSON.stringify(data);
+  document.body.innerHTML = '<dialog id="sleep-dialog"></dialog>';
+  const dialog = document.querySelector("dialog");
+  openSleepDetail(dialog, data, day);
+  for (const period of ["週", "月"]) {
+    [...dialog.querySelectorAll(".sleep-tab")].find(b => b.textContent === period).click();
+    const chart = dialog.querySelector(".sleep-trend-bars");
+    const selected = dialog.querySelector('[data-sleep-day="2026-10-28"]');
+    selected.click();
+    expect(dialog.querySelector(".sleep-selected-detail").textContent).toContain("5 小時 55 分");
+    expect(dialog.querySelector(".sleep-selected-detail").textContent).toContain("74");
+    expect(dialog.querySelector(".sleep-record-list").textContent).toContain(legacy.id);
+    expect(selected.getAttribute("aria-pressed")).toBe("true");
+    dialog.querySelector('[data-sleep-day="2026-10-27"]').click();
+    expect(dialog.querySelector(".sleep-selected-detail").textContent).toContain("沒有睡眠紀錄");
+    selected.click();
+    dialog.querySelector(".sleep-selected-detail button").click();
+    expect(dialog.querySelector(".sleep-selected-detail").textContent).toBe("");
+    expect(dialog.querySelector(".sleep-trend-bars")).toBe(chart);
+  }
+  expect(JSON.stringify(data)).toBe(bytes);
+});

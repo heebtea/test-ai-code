@@ -5,8 +5,8 @@ const data = (...records) => ({ version: 7, records });
 const r = (id, type, date, details = {}) => ({ id, type, date, ...details });
 
 describe("日／週／月統計日期", () => {
-  it("六種生活項目都有日週月", () => {
-    expect(metricTypes).toEqual(["coffee", "water", "beverage", "activity", "sunlight", "spending"]);
+  it("七種生活項目都有日週月", () => {
+    expect(metricTypes).toEqual(["coffee", "water", "beverage", "activity", "sunlight", "spending", "meal"]);
     expect(metricRange("2026-11-02", "day")).toEqual({ start: "2026-11-02", end: "2026-11-02" });
     expect(metricRange("2026-11-02", "week")).toEqual({ start: "2026-11-02", end: "2026-11-08" });
     expect(metricRange("2026-11-08", "week")).toEqual({ start: "2026-11-02", end: "2026-11-08" });
@@ -88,7 +88,9 @@ describe("花費：依實際付款日分帳，不重複扣券", () => {
     expect(v.reimbursement.value).toBe(10);
     expect(v.value).toBe(180);
     expect(v.unknown).toBe(1);
-    expect(v.count).toBe(5);
+    expect(v.count).toBe(6); // Includes one unpaid item in the timeline, never in money totals.
+    expect(v.confirmed).toBe(5);
+    expect(v.pending).toBe(1);
     expect(v.entries.find((x) => x.record.id === "f").date).toBe("2026-11-02");
   });
   it("只有未知金額時不顯示 0 元", () => {

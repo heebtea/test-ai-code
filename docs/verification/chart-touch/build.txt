@@ -1,0 +1,13 @@
+
+> project-second-brain-lite@0.4.0 build
+> vite build
+
+vite v7.3.7 building client environment for production...
+transforming...
+✓ 13 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                  0.82 kB │ gzip:  0.45 kB
+dist/assets/index-BL1-eXvb.css  19.63 kB │ gzip:  4.82 kB
+dist/assets/index-ChbxLRY0.js   77.14 kB │ gzip: 26.44 kB
+✓ built in 244ms
