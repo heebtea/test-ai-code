@@ -143,6 +143,7 @@ it("meal UI saves separate fields and partial meal is never shown as fully eaten
   document.querySelector("[name=paymentDate]").value =
     document.querySelector("#date").value;
   document.querySelector("#edit-form").requestSubmit();
+  await Promise.resolve();
   expect(document.querySelector(".meal .metric").textContent).toContain(
     "有紀錄但數值／本人份量未知",
   );
@@ -153,6 +154,7 @@ it("meal UI saves separate fields and partial meal is never shown as fully eaten
   document.querySelector("[name=status]").value = "吃完";
   document.querySelector("[name=consumedQuantity]").value = "1";
   document.querySelector("#edit-form").requestSubmit();
+  await Promise.resolve();
   expect(document.querySelector(".meal .metric").textContent).toContain(
     "1 餐本人已確認食用",
   );

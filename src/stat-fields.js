@@ -1,4 +1,4 @@
-// Optional statistics metadata. v7 names align with PR16; v8 additions require integration there.
+// Optional record metadata shared by the editor, backups, and statistics.
 export const quantities = [
   "quantity",
   "consumedQuantity",
@@ -23,6 +23,7 @@ export function statKeys(type) {
     "unit",
     "provenance",
     "updatedAt",
+    "correctedAt",
     ...(type === "spending" ? ["transactionKind", "paymentDate"] : []),
     ...(type === "meal" ? ["mealType", "orderStatus"] : []),
     ...(type === "activity" ? ["startTime", "endTime"] : []),
@@ -30,6 +31,7 @@ export function statKeys(type) {
 }
 export function statVersion(r) {
   if (
+    r.correctedAt !== undefined ||
     r.mealType !== undefined ||
     r.orderStatus !== undefined ||
     (r.type === "activity" &&
@@ -68,13 +70,14 @@ export function validateStatFields(r, validDate) {
   ])
     if (r[k] !== undefined && (typeof r[k] !== "string" || r[k].length > max))
       throw Error("來源或單位無效");
-  if (
-    r.updatedAt !== undefined &&
-    (typeof r.updatedAt !== "string" ||
-      !/^\d{4}-\d{2}-\d{2}T.*Z$/.test(r.updatedAt) ||
-      !Number.isFinite(Date.parse(r.updatedAt)))
-  )
-    throw Error("修改時間無效");
+  for (const key of ["updatedAt", "correctedAt"])
+    if (
+      r[key] !== undefined &&
+      (typeof r[key] !== "string" ||
+        !/^\d{4}-\d{2}-\d{2}T.*Z$/.test(r[key]) ||
+        !Number.isFinite(Date.parse(r[key])))
+    )
+      throw Error("修改或補正時間無效");
   if (
     r.transactionKind !== undefined &&
     (r.type !== "spending" ||
@@ -136,6 +139,8 @@ export function addStatFields(container, r) {
   if (r.type === "meal") {
     add("mealType", "餐別（不依時間猜測）", "text", mealTypes);
     add("orderStatus", "選購狀態（與付款／食用分開）", "text", orderStates);
+  }
+  if (["meal", "coffee", "beverage", "spending"].includes(r.type)) {
     for (const [i, k] of quantities.entries())
       add(
         k,
@@ -144,6 +149,7 @@ export function addStatFields(container, r) {
         ] + "（未知留空）",
         "number",
       );
+    add("unit", "數量單位").maxLength = 20;
   }
   if (r.type === "activity") {
     add("startTime", "活動開始（判斷重疊用）", "time");

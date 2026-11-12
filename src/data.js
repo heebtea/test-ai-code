@@ -1,4 +1,6 @@
 import { statKeys, statVersion, validateStatFields } from "./stat-fields.js";
+import { assertWritable } from "./storage-guard.js";
+export const RECORD_VERSIONS = Object.freeze([2, 3, 4, 5, 6, 7, 8]);
 export const STORAGE_KEY = "second-brain-lite-v2";
 export const THEME_KEY = "second-brain-theme";
 export const types = [
@@ -15,7 +17,7 @@ export const types = [
 ];
 export const empty = () => ({ version: 5, records: [] });
 export function localDate(d = new Date()) {
-  return new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Taipei',year:'numeric',month:'2-digit',day:'2-digit'}).format(d);
+  return new Intl.DateTimeFormat('en-CA', {timeZone:'Asia/Taipei',year:'numeric',month:'2-digit',day:'2-digit'}).format(d);
 }
 export function validDate(s) {
   return (
@@ -30,7 +32,7 @@ export function validDate(s) {
 export function shiftDate(s, n) {
   const d = new Date(s + "T00:00:00Z");
   d.setUTCDate(d.getUTCDate() + n);
-  return d.toISOString().slice(0,10);
+  return d.toISOString().slice(0, 10);
 }
 export const fields = {
   sleep: { minutes: 1440, deep: 1440, rem: 1440, score: 100 },
@@ -234,7 +236,7 @@ export function validateRecord(r) {
 export function validate(data) {
   if (
     !data ||
-    ![2, 3, 4, 5, 6, 7, 8].includes(data.version) ||
+    !RECORD_VERSIONS.includes(data.version) ||
     !Array.isArray(data.records) ||
     Object.keys(data).some((k) => !["version", "records"].includes(k)) ||
     data.records.length > 10000
@@ -307,6 +309,7 @@ export function loadRecords(storage) {
   return s === null ? empty() : parseBackup(s);
 }
 export function persist(storage, data) {
+  assertWritable(storage);
   const value = JSON.stringify(validate(data));
   storage.setItem(STORAGE_KEY, value);
 }
@@ -335,7 +338,6 @@ export function isPaid(r) {
 }
 export function transactions(data,date){return data.records.filter(r=>['spending','coffee','meal','beverage'].includes(r.type)&&isPaid(r)&&transactionDate(r)===date);}
 // Existing overview/journal purchase totals stay separate from refunds and reimbursements.
-export function expenses(data,date){return transactions(data,date).filter(r=>!r.transactionKind||r.transactionKind==='purchase');}
 
 /** Count only confirmed consumed liquids; the same record is counted once. */
 export function liquidIntake(data, date) {
@@ -355,4 +357,15 @@ export function liquidIntake(data, date) {
     breakdown,
     pending: relevant.length - confirmed.length,
   };
+}
+
+export function expenses(data, date) {
+  return transactions(data,date).filter(r => !r.transactionKind || r.transactionKind === 'purchase');
+}
+export function cashflow(data, date) {
+  const all = transactions(data,date);
+  const groups = Object.fromEntries(['purchase','refund','reimbursement'].map(kind => [kind, all.filter(r => (r.transactionKind || 'purchase') === kind)]));
+  const totals = Object.fromEntries(Object.entries(groups).map(([k,rs]) => [k,sum(rs,'amount')]));
+  const known = all.some(r => r.amount !== null);
+  return { groups, totals, knownNet: known ? Math.round(((totals.purchase.value || 0) - (totals.refund.value || 0) - (totals.reimbursement.value || 0))*100)/100 : null, unknown: all.filter(r => r.amount === null).length };
 }

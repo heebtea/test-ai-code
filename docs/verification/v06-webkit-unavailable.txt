@@ -1,0 +1,18 @@
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+
+> project-second-brain-lite@0.6.0 test:webkit
+> BROWSER_ENGINE=webkit node tests/v05-browser.cjs
+
+browserType.launch: Executable doesn't exist at /root/.cache/ms-playwright/webkit-2370/pw_run.sh
+╔════════════════════════════════════════════════════════════╗
+║ Looks like Playwright was just installed or updated.       ║
+║ Please run the following command to download new browsers: ║
+║                                                            ║
+║     npx playwright install                                 ║
+║                                                            ║
+║ <3 Playwright Team                                         ║
+╚════════════════════════════════════════════════════════════╝
+    at /workspace/scratch/a45ab7a0cb85/test-ai-code/tests/v05-browser.cjs:30:53 {
+  log: [],
+  name: 'Error'
+}

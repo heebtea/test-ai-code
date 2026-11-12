@@ -72,6 +72,7 @@ fs.mkdirSync(output, { recursive: true });
             buffer: Buffer.from(JSON.stringify(legacy)),
           });
         await page.locator("#yes").click();
+    await page.locator("#confirm").waitFor({state:"hidden"});
         assert.match(await page.locator(".water .metric").innerText(), /350/);
         await page.locator("[data-add=meal]").click();
         await page.locator("[name=name]").fill("合成餐點 · 排版驗證");
@@ -83,6 +84,7 @@ fs.mkdirSync(output, { recursive: true });
         await page.locator("[name=endTime]").fill("12:30");
         await page.locator("[name=status]").selectOption("部分");
         await page.locator("#edit-form .save").click();
+    await page.locator("#editor").waitFor({state:"hidden"});
         assert.match(
           await page.locator(".meal .metric").innerText(),
           /有紀錄但數值／本人份量未知/,
@@ -96,6 +98,7 @@ fs.mkdirSync(output, { recursive: true });
         await page.locator("[name=status]").selectOption("吃完");
         await page.locator("[name=consumedQuantity]").fill("1");
         await page.locator("#edit-form .save").click();
+    await page.locator("#editor").waitFor({state:"hidden"});
         assert.match(
           await page.locator(".meal .metric").innerText(),
           /1 餐本人已確認食用/,
@@ -104,6 +107,7 @@ fs.mkdirSync(output, { recursive: true });
         await page.locator("[name=source]").fill("Apple Watch（合成）");
         await page.locator("[name=note]").fill("數值未知測試");
         await page.locator("#edit-form .save").click();
+    await page.locator("#editor").waitFor({state:"hidden"});
         assert.match(
           await page.locator(".sunlight .metric").innerText(),
           /^尚無資料/,
@@ -112,6 +116,7 @@ fs.mkdirSync(output, { recursive: true });
         await page.locator(".sunlight [data-edit]").click();
         await page.locator("[name=minutes]").fill("15");
         await page.locator("#edit-form .save").click();
+    await page.locator("#editor").waitFor({state:"hidden"});
         assert.match(await page.locator(".sunlight .metric").innerText(), /15/);
         await page.reload();
         assert.match(
@@ -129,13 +134,8 @@ fs.mkdirSync(output, { recursive: true });
           ),
           false,
         );
-        assert(
-          (await page
-            .locator(".spending")
-            .evaluate((e) => e.getBoundingClientRect().bottom)) <
-            (width === 390 ? 1100 : 1000),
-          "compact summary height",
-        );
+        assert(await page.locator('.dashboard .card').evaluateAll(cards => cards.every(card => card.getBoundingClientRect().height < 280)), 'collapsed summary cards remain compact');
+        assert.equal(await page.locator('.dashboard').evaluate(el => getComputedStyle(el).gridTemplateColumns.split(' ').length), width === 390 ? 2 : 4);
         await page.screenshot({
           path: path.join(output, `v03-${width}-${theme}.png`),
           fullPage: true,
@@ -156,6 +156,7 @@ fs.mkdirSync(output, { recursive: true });
           await page.locator(`.${type} summary`).click();
           await page.locator(`.${type} [data-delete]`).click();
           await page.locator("#yes").click();
+    await page.locator("#confirm").waitFor({state:"hidden"});
           assert.equal(
             await page.locator(`.${type} .metric`).innerText(),
             "尚無資料",
@@ -173,6 +174,7 @@ fs.mkdirSync(output, { recursive: true });
         await page.locator("#confirm").waitFor({ state: "visible" });
         assert.match(await page.locator("#confirm").innerText(), /衝突 1/);
         await page.locator("#yes").click();
+    await page.locator("#confirm").waitFor({state:"hidden"});
         assert.match(await page.locator(".water .metric").innerText(), /350/);
         assert.equal(errors.length, 0, errors.join("\n"));
         console.log(

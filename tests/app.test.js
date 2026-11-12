@@ -121,6 +121,7 @@ it("storage failure propagates and corrupted original is preserved", () => {
   expect(() =>
     m.persist(
       {
+        getItem: () => null,
         setItem: () => {
           throw Error("quota");
         },
@@ -141,7 +142,7 @@ beforeEach(async () => {
   };
   await import("../src/main.js");
 });
-it("UI empty, add, edit same ID, date isolation and delete confirmation", () => {
+it("UI empty, add, edit same ID, date isolation and delete confirmation", async () => {
   expect(document.querySelectorAll(".metric")).toHaveLength(9);
   expect(
     [...document.querySelectorAll(".metric")].every(
@@ -151,9 +152,11 @@ it("UI empty, add, edit same ID, date isolation and delete confirmation", () => 
   document.querySelector("[data-add=water]").click();
   document.querySelector("[name=volume]").value = "250";
   document.querySelector("#edit-form").requestSubmit();
+  await Promise.resolve();
   document.querySelector("[data-edit]").click();
   document.querySelector("[name=volume]").value = "350";
   document.querySelector("#edit-form").requestSubmit();
+  await Promise.resolve();
   expect(JSON.parse(localStorage.getItem(m.STORAGE_KEY)).records).toHaveLength(
     1,
   );
@@ -166,22 +169,25 @@ it("UI empty, add, edit same ID, date isolation and delete confirmation", () => 
   expect(document.querySelector("[data-edit]")).not.toBeNull();
   document.querySelector("[data-delete]").click();
   document.querySelector("#yes").click();
+  await Promise.resolve();
   expect(document.querySelector("[data-edit]")).toBeNull();
 });
-it("UI escapes malicious notes and does not insert HTML", () => {
+it("UI escapes malicious notes and does not insert HTML", async () => {
   document.querySelector("[data-add=spending]").click();
   document.querySelector("[name=note]").value = "<img src=x onerror=alert(1)>";
   document.querySelector("#edit-form").requestSubmit();
+  await Promise.resolve();
   expect(document.querySelector(".spending img")).toBeNull();
   expect(document.querySelector(".spending").textContent).toContain("<img");
 });
-it("UI failed writes do not change state", () => {
+it("UI failed writes do not change state", async () => {
   vi.spyOn(Storage.prototype, "setItem").mockImplementationOnce(() => {
     throw Error("quota");
   });
   document.querySelector("[data-add=water]").click();
   document.querySelector("[name=volume]").value = "12";
   document.querySelector("#edit-form").requestSubmit();
+  await Promise.resolve();
   expect(document.querySelector("#editor .error").textContent).toContain(
     "未儲存",
   );
@@ -219,11 +225,12 @@ it("identical imported content with different key order is not a conflict", () =
   const reordered = Object.fromEntries(Object.entries(d.records[0]).reverse());
   expect(m.merge(d, { version: 2, records: [reordered] }).conflicts).toBe(0);
 });
-it("another tab update cannot be overwritten", () => {
+it("another tab update cannot be overwritten", async () => {
   document.querySelector("[data-add=water]").click();
   document.querySelector("[name=volume]").value = "22";
   localStorage.setItem(m.STORAGE_KEY, JSON.stringify(m.upsert(m.empty(), r())));
   document.querySelector("#edit-form").requestSubmit();
+  await Promise.resolve();
   expect(document.querySelector("#editor .error").textContent).toContain(
     "另一分頁",
   );
