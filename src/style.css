@@ -477,16 +477,19 @@ dialog p {
   font-size: 13px;
   color: var(--muted);
 }
-#journal-canvas {
-  display: block;
-  width: min(100%, 360px);
-  height: auto;
-  margin: 12px auto;
-  border: 1px solid var(--line);
-}
 #journal-dialog {
-  width: min(520px, calc(100% - 24px));
+  width: min(760px, calc(100% - 24px));
+  max-height: calc(100dvh - 32px);
+  overflow: auto;
 }
+.journal-controls { display: flex; gap: 12px; flex-wrap: wrap; }
+.journal-page { margin: 20px 0 32px; }
+.journal-page-viewport { width: 100%; overflow: auto; border: 1px solid var(--line); }
+.journal-page-canvas { display: block; width: 100%; height: auto; aspect-ratio: 9 / 16; }
+.is-zoomed .journal-page-canvas { width: 1080px; max-width: none; }
+.journal-page-download { margin: 12px 0; min-height: 44px; }
+.journal-page-text { font-size: 16px; line-height: 1.7; overflow-wrap: anywhere; }
+.journal-page-text p { white-space: pre-wrap; }
 @media (max-width: 560px) {
   .card-toggle {
     font-size: 17px;
