@@ -7,10 +7,11 @@
     "dev": "vite --host 0.0.0.0",
     "build": "vite build",
     "test": "vitest run",
-    "test:browser": "node tests/browser.cjs && node tests/v03-browser.cjs && node tests/v04-browser.cjs && node tests/template-browser.cjs && node tests/ocr-batch-browser.cjs && node tests/ocr-mixed-browser.cjs && node tests/v05-browser.cjs && node tests/ocr-engine-browser.cjs && node tests/v06-browser.cjs && node tests/metric-browser.cjs && node tests/stats-v2-browser.cjs && node tests/ai-bridge-browser.cjs",
+    "test:browser": "node tests/browser.cjs && node tests/v03-browser.cjs && node tests/v04-browser.cjs && node tests/template-browser.cjs && node tests/ocr-batch-browser.cjs && node tests/ocr-mixed-browser.cjs && node tests/v05-browser.cjs && node tests/ocr-engine-browser.cjs && node tests/v06-browser.cjs && node tests/metric-browser.cjs && node tests/stats-v2-browser.cjs && node tests/ai-bridge-browser.cjs && node tests/journal-flow-browser.cjs",
     "lint": "eslint src server tests",
     "test:webkit": "BROWSER_ENGINE=webkit node tests/v05-browser.cjs",
-    "test:bridge:webkit": "BROWSER_ENGINE=webkit node tests/ai-bridge-browser.cjs"
+    "test:bridge:webkit": "BROWSER_ENGINE=webkit node tests/ai-bridge-browser.cjs",
+    "test:journal": "node tests/journal-flow-browser.cjs"
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.5.14",

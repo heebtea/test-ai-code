@@ -11,6 +11,7 @@ import { recognizeCard } from "./ocr.js";
 import { planReviewBatch } from "./ocr-review.js";
 import { findExactCandidate } from "./ocr-records.js";
 import { timeline, drawTemplateJournal, journalSections } from "./journal.js";
+import { renderJournalPage } from "./journal-layout.js";
 import {
   baseTemplate,
   sectionNames,
@@ -1010,33 +1011,68 @@ function openOcr(initialFile, showDrafts = false) {
   if (initialFile) run(initialFile);
 }
 
-function showJournal() {
+async function showJournal() {
   const d = document.querySelector("#journal-dialog");
-  d.innerHTML =
-    '<h2>今日小誌預覽</h2><p>以目前選取日期的紀錄產生。照片不會自動加入圖卡。</p><canvas id="journal-canvas" aria-label="每日小誌預覽"></canvas><p class="error" role="alert"></p><div class="dialog-actions"><button id="journal-close">關閉</button><button id="journal-download">匯出 PNG</button></div>';
-  const canvas = d.querySelector("canvas");
-  const layout = drawTemplateJournal(canvas, data, date, selectedTemplate);
-  const incomplete = layout.clipped > 0 || layout.shown < timeline(data,date).length;
-  if (incomplete) {
-    d.querySelector('.error').textContent = '此單頁預覽容不下完整明細，已停用 PNG 匯出以免遺漏。請改用其他欄數模板，或匯出完整備份保留所有內容。多頁 PNG 尚未提供。';
-    d.querySelector('#journal-download').disabled = true;
-  }
-  d.querySelector("#journal-close").onclick = () => d.close();
-  d.querySelector("#journal-download").onclick = () =>
-    canvas.toBlob((blob) => {
-      if (!blob) {
-        d.querySelector(".error").textContent = "圖片產生失敗";
-        return;
-      }
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `second-brain-${date}.png`;
-      a.click();
-      setTimeout(() => URL.revokeObjectURL(url), 1000);
-    }, "image/png");
+  // Take a stable read-only snapshot before waiting for fonts or downloads.
+  const snapshot = structuredClone(data), exportDate = date, template = structuredClone(selectedTemplate);
+  d.innerHTML = '<h2>今日小誌預覽</h2><p role="status" id="journal-status">正在排版…</p><p>照片不自動加入。依欄由左至右閱讀，長明細會續欄或續頁；所有頁面共同構成完整日報。</p><div class="journal-controls"><button id="journal-zoom" type="button" aria-pressed="false">放大閱讀</button><button id="journal-close">關閉</button></div><div id="journal-pages"></div><p class="error" role="alert"></p>';
+  let observer;
+  d.querySelector('#journal-close').onclick = () => d.close();
+  d.onclose = () => {
+    observer?.disconnect();
+    // Release canvas backing stores when the preview is closed.
+    d.querySelectorAll('canvas').forEach(c => { c.width=1; c.height=1; });
+  };
   d.showModal();
+  try {
+    await document.fonts.ready;
+    if (!d.open) return;
+    const first = document.createElement('canvas');
+    first.id = 'journal-canvas';
+    const plan = drawTemplateJournal(first, snapshot, exportDate, template);
+    d.querySelector('#journal-status').textContent = `共 ${plan.pageCount} 頁 · 1080 × 1920 PNG · 完整呈現，無版面省略`;
+    const container = d.querySelector('#journal-pages');
+    const ensureDrawn = (canvas,index) => {
+      if(canvas.width !== 1080) renderJournalPage(canvas,plan,exportDate,template,index);
+    };
+    observer = new IntersectionObserver(entries => {
+      for(const entry of entries) if(entry.isIntersecting) {
+        ensureDrawn(entry.target,Number(entry.target.dataset.page));
+        observer.unobserve(entry.target);
+      }
+    }, {root:d,rootMargin:'200px'});
+    plan.pages.forEach((page,index) => {
+      const article = document.createElement('article');
+      article.className = 'journal-page';
+      article.innerHTML = `<h3>第 ${index+1} / ${plan.pageCount} 頁</h3><div class="journal-page-viewport" tabindex="0" aria-label="第 ${index+1} 頁圖片，可放大捲動"></div><button ${index===0?'id="journal-download"':''} class="journal-page-download" type="button">下載第 ${index+1} 頁 PNG</button><details class="journal-page-text"><summary>閱讀本頁文字</summary>${page.cards.map(card=>`<h4>${esc(card.title)}${card.continued?'（續）':''}</h4><p>${esc(card.lines.map((line,i)=>(i && line.id!==card.lines[i-1].id?'\n\n':'')+line.text).join(''))}</p>`).join('')}</details>`;
+      const canvas = index===0?first:document.createElement('canvas');
+      if(index!==0){canvas.width=1;canvas.height=1;}
+      canvas.className='journal-page-canvas';canvas.dataset.page=index;
+      canvas.setAttribute('aria-label',`每日小誌第 ${index+1} 頁，共 ${plan.pageCount} 頁；完整文字見下方`);
+      article.querySelector('.journal-page-viewport').append(canvas);
+      container.append(article);
+      observer.observe(canvas);
+      article.querySelector('button').onclick = () => {
+        ensureDrawn(canvas,index);
+        canvas.toBlob(blob => {
+          if (!blob) { d.querySelector('.error').textContent='圖片產生失敗，請重試此頁。'; return; }
+          const url=URL.createObjectURL(blob), a=document.createElement('a');
+          a.href=url;a.download=`second-brain-${exportDate}-p${String(index+1).padStart(2,'0')}-of-${plan.pageCount}.png`;a.click();
+          setTimeout(()=>URL.revokeObjectURL(url),1000);
+        },'image/png');
+      };
+    });
+    d.querySelector('#journal-zoom').onclick = event => {
+      const zoomed=container.classList.toggle('is-zoomed');
+      event.currentTarget.setAttribute('aria-pressed',String(zoomed));
+      event.currentTarget.textContent=zoomed?'縮回整頁':'放大閱讀';
+    };
+  } catch(error) {
+    d.querySelector('#journal-status').textContent='排版未完成';
+    d.querySelector('.error').textContent=`無法產生小誌：${error.message}。原始紀錄未變動。`;
+  }
 }
+
 function showEvent(id) {
   const r = data.records.find((r) => r.id === id);
   if (!r) return;

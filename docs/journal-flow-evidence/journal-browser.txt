@@ -1,0 +1,3 @@
+PASS journal 390px Chromium touch: 3 pages, 11 transactions/638, all page downloads, zoom, 1/2/3 columns, real-font line/draw audit, JSON repeat import, no mutation/outbound/errors
+PASS journal 430px Chromium touch: 3 pages, 11 transactions/638, all page downloads, zoom, 1/2/3 columns, real-font line/draw audit, JSON repeat import, no mutation/outbound/errors
+Chromium 153.0.8010.0; NOT physical iPhone Safari

@@ -1,0 +1,47 @@
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+
+> project-second-brain-lite@0.6.0 test:browser
+> node tests/browser.cjs && node tests/v03-browser.cjs && node tests/v04-browser.cjs && node tests/template-browser.cjs && node tests/ocr-batch-browser.cjs && node tests/ocr-mixed-browser.cjs && node tests/v05-browser.cjs && node tests/ocr-engine-browser.cjs && node tests/v06-browser.cjs && node tests/metric-browser.cjs && node tests/stats-v2-browser.cjs && node tests/ai-bridge-browser.cjs && node tests/journal-flow-browser.cjs
+
+PASS 1440px: empty/CRUD/correction/date/theme/reload/export/import cancel-confirm-repeat-invalid/no outbound/errors/overflow
+PASS 390px: empty/CRUD/correction/date/theme/reload/export/import cancel-confirm-repeat-invalid/no outbound/errors/overflow
+PASS synthetic liquid intake: pending excluded, confirmed counted once, editable water
+PASS Chromium localStorage read failure
+Chromium 153.0.8010.0: 2 viewport suites passed
+PASS v0.3 390px light: legacy import, meal/sunlight CRUD, null, paid/partial separation, conflict, reload, layout, screenshots
+PASS v0.3 390px dark: legacy import, meal/sunlight CRUD, null, paid/partial separation, conflict, reload, layout, screenshots
+PASS v0.3 1440px light: legacy import, meal/sunlight CRUD, null, paid/partial separation, conflict, reload, layout, screenshots
+PASS v0.3 1440px dark: legacy import, meal/sunlight CRUD, null, paid/partial separation, conflict, reload, layout, screenshots
+Chrome 153.0.8010.0
+PASS v0.4 390px light: card, timeline, photo persistence, PNG, JSON, date, layout
+PASS v0.4 390px dark: card, timeline, photo persistence, PNG, JSON, date, layout
+PASS v0.4 1440px light: card, timeline, photo persistence, PNG, JSON, date, layout
+PASS v0.4 1440px dark: card, timeline, photo persistence, PNG, JSON, date, layout
+PASS template 390px light: image formats, palette, mapping, save, reload, restore, real records, PNG and privacy
+PASS template 390px dark: image formats, palette, mapping, save, reload, restore, real records, PNG and privacy
+PASS template 1440px light: image formats, palette, mapping, save, reload, restore, real records, PNG and privacy
+PASS template 1440px dark: image formats, palette, mapping, save, reload, restore, real records, PNG and privacy
+PASS batch 390 light: compact review, preserve edits, one confirmation, pending payment, cancel, local write
+PASS batch 390 dark: compact review, preserve edits, one confirmation, pending payment, cancel, local write
+PASS batch 1440 light: compact review, preserve edits, one confirmation, pending payment, cancel, local write
+PASS batch 1440 dark: compact review, preserve edits, one confirmation, pending payment, cancel, local write
+PASS mixed batch 390 light: 22 selected, 5 new / 3 exact copies / 14 drafts, reasons, cancel, retry, draft reopen, no overwrite
+PASS mixed batch 390 dark: 22 selected, 5 new / 3 exact copies / 14 drafts, reasons, cancel, retry, draft reopen, no overwrite
+PASS mixed batch 1440 light: 22 selected, 5 new / 3 exact copies / 14 drafts, reasons, cancel, retry, draft reopen, no overwrite
+PASS mixed batch 1440 dark: 22 selected, 5 new / 3 exact copies / 14 drafts, reasons, cancel, retry, draft reopen, no overwrite
+PASS v0.5 chromium 390px light: separate-device full roundtrip, photo/template bytes, conflicts, rollback, stale preview, quantities, date, PNG 1080x1920
+PASS v0.5 chromium 390px dark: separate-device full roundtrip, photo/template bytes, conflicts, rollback, stale preview, quantities, date, PNG 1080x1920
+PASS v0.5 chromium 1440px light: separate-device full roundtrip, photo/template bytes, conflicts, rollback, stale preview, quantities, date, PNG 1080x1920
+PASS v0.5 chromium 1440px dark: separate-device full roundtrip, photo/template bytes, conflicts, rollback, stale preview, quantities, date, PNG 1080x1920
+PASS real Tesseract engine: PNG/JPEG/WebP batch; 33 candidates; date/sleep/steps/sunlight; all/none, reasons, cancel/no write, same-origin only
+PASS v0.6 light: mobile/desktop isolated storage, date/privacy preview, identical share/download, offline UI edits, reconnect conflicts, retry, auth refusal, stop/reload and no token persistence
+PASS v0.6 dark: mobile/desktop isolated storage, date/privacy preview, identical share/download, offline UI edits, reconnect conflicts, retry, auth refusal, stop/reload and no token persistence
+Seven-category daily/weekly/monthly browser smoke passed
+PASS chart touch 390px: all seven categories and sleep, repeated date selection, missing day, return, unchanged storage
+PASS Statistics V2 390px: day/week/month/empty/error screenshots, meal self-vs-family, chart drilldown, previous/next month, read-only refresh, same-ID update, refund date, voucher default override, sleep preserved, no outbound or overflow
+PASS chart touch 1440px: all seven categories and sleep, repeated date selection, missing day, return, unchanged storage
+PASS Statistics V2 1440px: day/week/month/empty/error screenshots, meal self-vs-family, chart drilldown, previous/next month, read-only refresh, same-ID update, refund date, voucher default override, sleep preserved, no outbound or overflow
+PASS Chromium: iPhone viewport touch, custom range/categories, privacy, unavailable-share fallback, identical share/download and unchanged local data
+PASS journal 390px Chromium touch: 3 pages, 11 transactions/638, all page downloads, zoom, 1/2/3 columns, real-font line/draw audit, JSON repeat import, no mutation/outbound/errors
+PASS journal 430px Chromium touch: 3 pages, 11 transactions/638, all page downloads, zoom, 1/2/3 columns, real-font line/draw audit, JSON repeat import, no mutation/outbound/errors
+Chromium 153.0.8010.0; NOT physical iPhone Safari

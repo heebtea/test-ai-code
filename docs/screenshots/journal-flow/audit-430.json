@@ -1,0 +1,65 @@
+[
+  {
+    "columns": 1,
+    "pages": 5,
+    "coverage": true,
+    "inBounds": true,
+    "transactions": [
+      "transaction:synthetic-purchase-1",
+      "transaction:synthetic-purchase-2",
+      "transaction:synthetic-purchase-3",
+      "transaction:synthetic-purchase-4",
+      "transaction:synthetic-purchase-5",
+      "transaction:synthetic-purchase-6",
+      "transaction:synthetic-purchase-7",
+      "transaction:synthetic-purchase-8",
+      "transaction:synthetic-purchase-9",
+      "transaction:synthetic-purchase-10",
+      "transaction:synthetic-purchase-11"
+    ],
+    "compressed": false,
+    "actualDrawCoverage": true
+  },
+  {
+    "columns": 2,
+    "pages": 3,
+    "coverage": true,
+    "inBounds": true,
+    "transactions": [
+      "transaction:synthetic-purchase-1",
+      "transaction:synthetic-purchase-2",
+      "transaction:synthetic-purchase-3",
+      "transaction:synthetic-purchase-4",
+      "transaction:synthetic-purchase-5",
+      "transaction:synthetic-purchase-6",
+      "transaction:synthetic-purchase-7",
+      "transaction:synthetic-purchase-8",
+      "transaction:synthetic-purchase-9",
+      "transaction:synthetic-purchase-10",
+      "transaction:synthetic-purchase-11"
+    ],
+    "compressed": false,
+    "actualDrawCoverage": true
+  },
+  {
+    "columns": 3,
+    "pages": 3,
+    "coverage": true,
+    "inBounds": true,
+    "transactions": [
+      "transaction:synthetic-purchase-1",
+      "transaction:synthetic-purchase-2",
+      "transaction:synthetic-purchase-3",
+      "transaction:synthetic-purchase-4",
+      "transaction:synthetic-purchase-5",
+      "transaction:synthetic-purchase-6",
+      "transaction:synthetic-purchase-7",
+      "transaction:synthetic-purchase-8",
+      "transaction:synthetic-purchase-9",
+      "transaction:synthetic-purchase-10",
+      "transaction:synthetic-purchase-11"
+    ],
+    "compressed": false,
+    "actualDrawCoverage": true
+  }
+]
