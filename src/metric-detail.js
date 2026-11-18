@@ -48,8 +48,9 @@ function button(text, fn, cls = "") {
 }
 export function recordLabel(r, type) {
   const parts = [
-    r.startTime || r.time || "時間未知",
+    r.startTime || (r.endTime ? "開始未確認" : r.time || "時間未知"),
     r.endTime ? "至 " + r.endTime : "",
+    (r.startTime || r.endTime) && r.time && r.time !== r.startTime && r.time !== r.endTime ? "紀錄時間 " + r.time : "",
     r.name || names[r.type],
     r.status,
   ];
@@ -63,10 +64,10 @@ export function recordLabel(r, type) {
       "付款日 " + (r.paymentDate || "未知"),
       "開吃 " + (r.startTime || "未確認"),
       "完食 " + (r.status === "吃完" ? r.endTime || "時間未知" : "尚未確認"),
-      "購買 " + val(r.quantity, "份"),
-      "本人 " + val(r.consumedQuantity, "份"),
-      "他人 " + val(r.familyQuantity, "份"),
-      "剩餘 " + val(r.remainingQuantity, "份"),
+      "購買 " + val(r.quantity, r.unit || "份"),
+      "本人 " + val(r.consumedQuantity, r.unit || "份"),
+      "他人 " + val(r.familyQuantity, r.unit || "份"),
+      "剩餘 " + val(r.remainingQuantity, r.unit || "份"),
     );
   else if (type === "activity")
     parts.push(val(r.steps, "步"), val(r.minutes, "分鐘"));
@@ -74,7 +75,11 @@ export function recordLabel(r, type) {
   else if (type !== "spending") parts.push("容量 " + val(r.volume, "mL"),
     "開始 " + (r.startTime || "時間未知"),
     "結束 " + (r.endTime || "時間未知"));
-  if (type === "spending") parts.push(isPaid(r) ? "已付款／入帳金額 " + val(r.amount, "NT$") : "尚未確認付款，不計合計");
+  if (type === "spending") {
+    if (!isPaid(r)) parts.push(r.status === "未付款" || r.paid === false ? "未付款，不計合計" : "尚未確認付款，不計合計");
+    else if (!transactionDate(r)) parts.push("已付款，入帳日期未知，不計合計");
+    else parts.push("已付款／入帳金額 " + val(r.amount, "NT$"));
+  }
   if (["coffee", "meal", "beverage", "spending"].includes(r.type))
     parts.push(
       r.payment === "voucher"
@@ -257,7 +262,7 @@ export function openMetricDetail(dialog, source, anchorDate, metricType) {
     if (metricType === "meal") {
       row(overview, "本人已食用餐數（包含部分食用）", fmt(stats.value, "meal"));
       row(overview, "其中本人完食餐數", stats.completed + " 餐");
-      row(overview, "本人已食用份量", val(stats.personal.value, "份"));
+      row(overview, "本人已食用份量", stats.personal.byUnit.map(({ value, unit }) => val(value, unit)).join("、") || "未知");
       overview.append(
         el(
           "p",

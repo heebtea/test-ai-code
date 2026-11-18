@@ -1,0 +1,40 @@
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+
+> project-second-brain-lite@0.6.0 test
+> vitest run tests/journal-layout.test.js
+
+
+ RUN  v5.0.5 <checkout>
+
+ ❯ tests/journal-layout.test.js (12 tests | 1 failed) 129ms
+   × keeps a record timestamp separate when only the end of a drink is known 6ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/journal-layout.test.js > keeps a record timestamp separate when only the end of a drink is known
+AssertionError: expected '11:22～09:25 咖啡（已飲用）\n已飲用量 480 mL\n兌換券…' to contain '開始未確認～09:25'
+
+- Expected
++ Received
+
+- 開始未確認～09:25
++ 11:22～09:25 咖啡（已飲用）
++ 已飲用量 480 mL
++ 兌換券，不重複計券面費用；記錄金額未知
++ 備註：合成兌換券；不重複計入券面支出。
+
+ ❯ tests/journal-layout.test.js:126:21
+    124|   Object.assign(coffee, { time: '11:22', startTime: '', endTime: '09:2…
+    125|   const row = journalDocumentSections(parseBackup(JSON.stringify(data)…
+    126|   expect(row.value).toContain('開始未確認～09:25');
+       |                     ^
+    127|   expect(row.value).toContain('紀錄時間 11:22');
+    128| });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 11 passed (12)
+   Start at  09:21:45
+   Duration  318ms (tests 67%, transform 21%, import 10%, worker 2%)

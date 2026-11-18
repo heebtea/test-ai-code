@@ -312,3 +312,16 @@ it("cashflow with only a refund can be negative; the average preserves its sign"
     validDays: 1,
   });
 });
+
+it('preserves source units in meal rows and keeps incompatible quantities separate', async () => {
+  const { recordLabel } = await import('../src/metric-detail.js');
+  const a = record('meal', 'fruit', { status: '部分', consumedQuantity: 2, unit: '顆' });
+  const b = record('meal', 'soup', { status: '吃完', consumedQuantity: 0.5, unit: '碗' });
+  expect(recordLabel(a, 'meal')).toContain('本人 2 顆');
+  for (const period of ['day', 'week', 'month']) {
+    const stats = metricPeriod(data(a, b), day, period, 'meal');
+    expect(stats.value).toBe(2);
+    expect(stats.personal.value).toBeNull();
+    expect(stats.personal.byUnit).toEqual([{ unit: '顆', value: 2 }, { unit: '碗', value: 0.5 }]);
+  }
+});

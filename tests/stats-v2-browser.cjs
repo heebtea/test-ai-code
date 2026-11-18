@@ -1,4 +1,4 @@
-const { chromium } = require("playwright-core"),
+const { chromium, webkit } = require("playwright-core"),
   assert = require("node:assert/strict"),
   fs = require("node:fs");
 const { spawn } = require("node:child_process");
@@ -50,6 +50,7 @@ const meal = {
   quantity: 3,
   consumedQuantity: 1,
   familyQuantity: 2,
+  unit: "碗",
   remainingQuantity: 0,
 };
 const seed = {
@@ -91,10 +92,11 @@ const seed = {
     },
   ],
 };
+const output = process.env.SCREENSHOT_DIR || "test-results";
 let browser;
 async function snapshot(page, name) {
   await page.locator("#metric-dialog").evaluate((d) => (d.scrollTop = 0));
-  await page.screenshot({ path: "test-results/" + name + ".png" });
+  await page.screenshot({ path: output + "/" + name + ".png" });
 }
 (async () => {
   try {
@@ -104,7 +106,7 @@ async function snapshot(page, name) {
       } catch {}
       await new Promise((r) => setTimeout(r, 100));
     }
-    browser = await chromium.launch({
+    browser = process.env.BROWSER_ENGINE === "webkit" ? await webkit.launch() : await chromium.launch({
       headless: true,
       ...(process.env.CHROME_PATH
         ? { executablePath: process.env.CHROME_PATH }
@@ -112,7 +114,7 @@ async function snapshot(page, name) {
           ? {}
           : { channel: "chrome" }),
     });
-    fs.mkdirSync("test-results", { recursive: true });
+    fs.mkdirSync(output, { recursive: true });
     for (const width of [390, 1440]) {
       const context = await browser.newContext({
           viewport: { width, height: 900 },
@@ -144,8 +146,9 @@ async function snapshot(page, name) {
       );
       assert.match(
         await page.locator("#metric-dialog").innerText(),
-        /本人 1 份.*他人 2 份/,
+        /本人 1 碗.*他人 2 碗/,
       );
+      assert.match(await page.locator(".metric-detail-overview").innerText(), /本人已食用份量\s+1 碗/);
       await snapshot(page, "stats-v2-" + width + "-day");
       const tabs = page.locator(".metric-period-tabs button");
       await tabs.nth(1).click();
@@ -156,7 +159,7 @@ async function snapshot(page, name) {
       assert.equal(await page.locator("[data-day]").count(), 7);
       await snapshot(page, "stats-v2-" + width + "-week");
       await page.locator(".metric-chart").scrollIntoViewIfNeeded();
-      await page.screenshot({path: "test-results/stats-v2-"+width+"-week-trend.png"});
+      await page.screenshot({path: output + "/stats-v2-" + width+"-week-trend.png"});
       await page.locator('[data-day="2026-11-02"]').click();
       assert.match(
         await page.locator(".metric-record-list").innerText(),
@@ -172,7 +175,7 @@ async function snapshot(page, name) {
       assert.match(await page.locator(".metric-week-compare").innerText(), /本機無紀錄 · 有效 0 天/);
       await snapshot(page, "stats-v2-" + width + "-month");
       await page.locator(".metric-week-compare").scrollIntoViewIfNeeded();
-      await page.screenshot({path: "test-results/stats-v2-"+width+"-month-comparison.png"});
+      await page.screenshot({path: output + "/stats-v2-" + width+"-month-comparison.png"});
       await page.getByRole("button", { name: "上一月", exact: true }).click();
       assert.match(
         await page.locator(".metric-detail-overview").innerText(),
@@ -247,6 +250,18 @@ async function snapshot(page, name) {
       );
       const touch = async locator => width === 390 ? locator.tap() : locator.click();
       const stored = await page.evaluate(() => localStorage.getItem("second-brain-lite-v2"));
+      const sleep = seed.records.find(record => record.type === "sleep");
+      async function verifySleepRecord() {
+        const row = page.locator(".sleep-record");
+        assert.equal(await row.count(), 1);
+        const text = await row.locator("p").first().innerText();
+        for (const fact of [sleep.id, sleep.note, sleep.status, "分數 " + sleep.score, "總睡眠 7 小時 30 分"]) {
+          assert.ok(text.includes(fact));
+        }
+        assert.deepEqual(await row.locator(".sleep-stage-row strong").allTextContents(),
+          ["20 分鐘", "1 小時 30 分", "5 小時 0 分", "1 小時 0 分"]);
+      }
+      await verifySleepRecord();
       for (const period of ["週", "月"]) {
         await touch(page.locator(".sleep-tab").filter({hasText: new RegExp("^"+period+"$")}));
         const count = await page.locator("[data-sleep-day]").count();
@@ -254,8 +269,9 @@ async function snapshot(page, name) {
         assert.match(await page.locator(".sleep-selected-detail").innerText(), /7 小時 30 分/);
         assert.match(await page.locator(".sleep-selected-detail").innerText(), /85/);
         assert.match(await page.locator(".sleep-record-list").innerText(), /synthetic-sleep/);
+        await verifySleepRecord();
         assert.equal(await page.locator("[data-sleep-day]").count(), count);
-        await page.screenshot({path: `test-results/chart-touch-${width}-sleep-${period === "週" ? "week" : "month"}.png`});
+        await page.screenshot({path: `${output}/chart-touch-${width}-sleep-${period === "週" ? "week" : "month"}.png`});
         await touch(page.locator('[data-sleep-day="2026-11-01"]'));
         assert.match(await page.locator(".sleep-selected-detail").innerText(), /沒有睡眠紀錄/);
         await touch(page.locator('[data-sleep-day="2026-11-02"]'));

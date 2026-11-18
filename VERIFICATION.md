@@ -1,5 +1,7 @@
 # v0.5 驗證紀錄
 
+> 本頁保留該次開發與驗收當時的分支狀態。最新主線基準與重跑結果見[2026-11-18 回歸報告](docs/regression-20261118/README.md)。
+
 基底：main `f850d27393a10314536655bb7b56f8d8d08ba2f1`。分支 `feat/second-brain-v0.5`；未合併、未部署。舊版 OCR 驗證段落已移除，歷史關係集中在 [根因報告](docs/v0.5-investigation.md)。
 
 ## 執行環境及結果

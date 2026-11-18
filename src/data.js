@@ -330,7 +330,7 @@ export function sum(rs, key) {
 export function transactionDate(r) {
   if(r.type==='coffee')return r.purchaseDate===undefined?r.date:r.purchaseDate;
   if(['meal','beverage'].includes(r.type))return r.paymentDate;
-  if(r.type==='spending')return r.paymentDate===undefined?r.date:r.paymentDate;
+  if(r.type==='spending')return r.paymentDate===undefined && isPaid(r) ? r.date : r.paymentDate ?? null;
   return null;
 }
 export function isPaid(r) {

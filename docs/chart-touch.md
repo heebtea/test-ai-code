@@ -1,5 +1,7 @@
 # 圖表觸控明細（未部署）
 
+> 本頁保留該次開發與驗收當時的分支狀態。最新主線基準與重跑結果見[2026-11-18 回歸報告](regression-20261118/README.md)。
+
 基於 PR #19 head b2305e7b602e1b1fe6a062f77a67d1efbe14b715，獨立分支 feat/statistics-chart-touch。main 仍為 0fcedcd0e33673d47b9e1a381f6968a06a01ef1f。本次只新增圖表互動與明細，沒有修改統計公式、schema、同步或使用者紀錄。
 
 ## 使用

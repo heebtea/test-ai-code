@@ -95,3 +95,21 @@ describe("v8 bridge snapshot", () => {
     expect(() => makeSnapshot({ ...data, records: [data.records[0], data.records[0]] }, { from })).toThrow('重複 ID');
   });
 });
+
+it('keeps drafts and attachment data out of both privacy modes and ignores later out-of-range edits', () => {
+  const input = structuredClone(data);
+  input.records.push({
+    id: 'draft-test', type: 'draft', status: '待確認', date: from, time: '', note: '',
+    classification: 'unclassified', source: 'PRIVATE_DRAFT_FILE', payload: '{"text":"PRIVATE_DRAFT_TEXT"}',
+  });
+  input.records.push({ ...input.records[0], id: 'later-meal', date: '2031-02-10',
+    paymentDate: '2031-02-10', updatedAt: '2031-02-12T10:00:00.000Z' });
+  validate(input);
+  for (const includeSensitive of [false, true]) {
+    const snapshot = makeSnapshot({ ...input, photos: ['PRIVATE_PHOTO_BYTES'], templates: ['PRIVATE_TEMPLATE'] },
+      { from, to, includeSensitive });
+    expect(snapshot.latestRecordUpdatedAt).toBe(correctedAt);
+    expect(snapshot.origin).toBe('local-device');
+    expect(JSON.stringify(snapshot)).not.toMatch(/PRIVATE_DRAFT|PRIVATE_PHOTO|PRIVATE_TEMPLATE|later-meal/);
+  }
+});
