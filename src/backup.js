@@ -37,7 +37,9 @@ async function transaction(kind, mode, action) {
       try { action(tx.objectStore(specs[kind][1]), value => { result = value; }); }
       catch (e) { tx.abort(); reject(e); }
       tx.oncomplete = () => resolve(result);
-      tx.onabort = tx.onerror = () => reject(tx.error || Error('資料庫交易中斷'));
+      let requestError;
+      tx.onerror = event => { requestError = event.target.error; };
+      tx.onabort = () => reject(requestError || tx.error || Error('資料庫交易中斷'));
     });
   } finally { db.close(); }
 }

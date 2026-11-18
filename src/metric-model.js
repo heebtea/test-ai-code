@@ -23,6 +23,20 @@ const total = (values) => {
     : null;
 };
 const round = (n) => Math.round(n * 100) / 100;
+function quantitySummary(records, field) {
+  const groups = new Map();
+  let unknown = 0;
+  for (const record of records) {
+    if (!known(record[field])) {
+      unknown++;
+      continue;
+    }
+    const unit = record.unit || "份";
+    groups.set(unit, (groups.get(unit) ?? 0) + record[field]);
+  }
+  const byUnit = Array.from(groups, ([unit, value]) => ({ unit, value: round(value) }));
+  return { value: byUnit.length === 1 ? byUnit[0].value : null, unknown, byUnit };
+}
 function check(data) {
   if (!data || !Array.isArray(data.records))
     throw Error("資料載入或解析失敗，不能顯示統計");
@@ -169,9 +183,9 @@ export function metricDay(data, date, type) {
     value = personal.length
       ? personal.filter((r) => r.consumedQuantity > 0).length
       : null;
-    extra.personal = sum(personal, "consumedQuantity");
-    extra.family = sum(items, "familyQuantity");
-    extra.remaining = sum(items, "remainingQuantity");
+    extra.personal = quantitySummary(accepted, "consumedQuantity");
+    extra.family = quantitySummary(items, "familyQuantity");
+    extra.remaining = quantitySummary(items, "remainingQuantity");
     extra.completed = personal.filter(
       (r) => r.consumedQuantity > 0 && r.status === "吃完",
     ).length;
@@ -257,10 +271,9 @@ export function metricPeriod(data, anchor, period, type) {
       unknown: days.reduce((n, d) => n + d.extra.minutes.unknown, 0),
     };
   if (type === "meal") {
-    result.personal = {
-      value: total(days.map((d) => d.extra.personal.value)),
-      unknown: result.unknown,
-    };
+    const consumed = result.entries.map(entry => entry.record)
+      .filter(record => ["部分", "吃完"].includes(record.status));
+    result.personal = quantitySummary(consumed, "consumedQuantity");
     result.completed = days.reduce((n, d) => n + d.extra.completed, 0);
   }
   if (type === "spending")

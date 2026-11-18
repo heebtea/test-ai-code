@@ -1,14 +1,8 @@
-# Second Brain Lite｜AI 私人資料橋接
+# Second Brain Lite
 
-[快照、使用方式與驗收](docs/ai-private-data-bridge.md) · [統計 V2](docs/statistics-v2.md) · [圖表觸控](docs/chart-touch.md) · [私人同步原型](docs/v0.6-private-sync.md)
+繁體中文生活紀錄工具。紀錄與照片預設儲存在目前瀏覽器的 localStorage 與 IndexedDB。可用完整備份搬移資料，也可主動分享選定範圍的 AI 快照。私人同步原型須另外設定服務與授權。
 
-以下為本機功能與遷移說明。
-
-# Project Second Brain Lite v0.5
-
-繁體中文生活紀錄工具。首次啟動為空白，**僅本機保存、尚未跨裝置同步**。資料保存在 localStorage 與 IndexedDB，圖片辨識也在瀏覽器本機完成。沒有帳號、後端、分析服務或外部資料上傳。不要把個人備份提交公開 GitHub。
-
-v0.5 最初由 main `f850d27` 開發。舊 OCR 的移除與未合併修復原因見 [調查與交付](docs/v0.5-investigation.md)，測試範圍見 [VERIFICATION.md](VERIFICATION.md)。
+[本次回歸與證據](docs/regression-20261118/README.md) · [三欄小誌](docs/journal-flow.md) · [統計與選日明細](docs/chart-touch.md) · [AI 快照](docs/AI_SHARING.md) · [私人同步原型](docs/v0.6-private-sync.md)
 
 ## 開發與驗證
 
@@ -19,12 +13,13 @@ npm ci
 npm test
 npm run lint
 npm run build
-npm run test:browser
+npx playwright-core install --with-deps chromium
+CI=1 npm run test:browser
 ```
 
-瀏覽器測試使用隔離環境及合成資料，需要 Playwright Chromium，或透過 `CHROME_PATH` 指定可執行檔。CI 已有 Chromium 安裝步驟。`SCREENSHOT_DIR` 可指定截圖位置，預設 `test-results/`。真實 OCR 測試使用 repo 內固定的合成 PNG，再轉 JPEG／WebP，不依賴主機中文字型。
+瀏覽器測試使用隔離環境及合成資料。上述指令使用 Playwright 安裝的 Chromium，也可透過 `CHROME_PATH` 指定 Chromium 執行檔。截圖預設寫入 `test-results/`。真實 OCR 測試使用 repo 內固定的合成 PNG，再轉 JPEG／WebP，不依賴主機中文字型。
 
-`npm run test:webkit` 提供 WebKit 的完整備份、編輯與 PNG 測試入口，需要另外安裝 WebKit 與其系統依賴。WebKit 模擬不等於實體 iPhone Safari 驗收；本次環境未能啟動 WebKit，詳見驗證紀錄。
+`npm run test:webkit` 提供 WebKit 的完整備份、編輯與 PNG 測試入口，需要另外安裝 WebKit 與其系統依賴。AI 快照另有 `npm run test:bridge:webkit`。設定 `BROWSER_ENGINE=webkit` 可用相同的統計與小誌測試腳本驗證 WebKit。CI 在對 main 的 PR 與 main 收到提交時執行 Chromium 全套及 WebKit 重點回歸。實體 iPhone 的分享面板與儲存至「檔案」需要裝置驗收。
 
 ## 本機 OCR 批次審核
 
@@ -65,8 +60,6 @@ npm run test:browser
 
 保留日期切換、快速新增、詳情編輯／刪除確認、深淺模式。手機輸入欄位最低 16px；OCR 批次工具可在長列表中使用。
 
-新模板預設三欄，既有單欄／雙欄設定保留。小誌把飲食、飲品、花費分開，花費逐筆呈現，Canvas 依字寬換行，使用系統繁體中文字型。輸出尺寸固定 1080×1920。**單頁放不下完整內容時會明確提示並停用 PNG 下載**，不把省略明細的圖卡當完整日報交付；可改其他欄數或保留完整備份。多頁 PNG 待後續開發。照片尚未嵌入小誌 PNG，但完整備份會保存照片。
+新模板預設三欄，保留單欄與雙欄設定。小誌依實際字寬換行，長明細從左欄接續至右欄，再接續到下一頁。每頁可放大、展開文字、獨立下載 1080 × 1920 PNG，檔名包含頁碼與總頁數。照片可隨完整備份搬移，小誌 PNG 目前呈現文字與數值。
 
-## 尚未提供
-
-通用跨類別彙總、正式雲端接線、照片跨裝置即時同步及多頁 PNG。安全架構比較見 [後續設計](docs/v0.5-investigation.md#雲端同步設計比較尚未實作)。未建立任何外部服務，也未改動正式環境設定。
+七項統計支援單日、週一至週日及自然月。睡眠另有回溯 7 天、30 天與六個月檢視。週／月圖點選日期後，可在原圖下方核對當日數值與逐筆明細。

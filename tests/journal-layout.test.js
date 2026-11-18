@@ -100,3 +100,29 @@ it('retains very long narratives and 180 events over many pages, never ellipsizi
   expect(plan.pages.length).toBeGreaterThan(3);expect(plan.shown).toBe(180);assertCoverage(plan);
   expect(plan.items.flatMap(i=>i.entries).filter(e=>e.id.startsWith('timeline-'))).toHaveLength(180);
 });
+
+it('prints the source time of journal text in each section that contains it', () => {
+  const data = journalFixture();
+  const journal = data.records.find(r => r.type === 'journal');
+  journal.time = '22:47';
+  for (const row of journalDocumentSections(data, day).filter(r => r.id.startsWith(journal.id + ':'))) {
+    expect(row.value).toContain('22:47');
+  }
+});
+
+it('keeps a legacy unpaid spending record outside totals and leaves its payment date unknown', () => {
+  const record = { id: 'unpaid', date: day, type: 'spending', status: '未付款', time: '11:22', note: '合成尾款', amount: 36 };
+  const rows = journalDocumentSections({ version: 7, records: [record] }, day);
+  const text = rows.find(row => row.id === record.id).value;
+  for (const fact of [record.note, record.time, '36 NT$', '未付款', '付款日期未知']) expect(text).toContain(fact);
+  expect(rows.some(row => row.id.startsWith('transaction:'))).toBe(false);
+});
+
+it('keeps a record timestamp separate when only the end of a drink is known', () => {
+  const data = journalFixture();
+  const coffee = data.records.find(row => row.type === 'coffee');
+  Object.assign(coffee, { time: '11:22', startTime: '', endTime: '09:25' });
+  const row = journalDocumentSections(parseBackup(JSON.stringify(data)), day).find(row => row.id === coffee.id);
+  expect(row.value).toContain('開始未確認～09:25');
+  expect(row.value).toContain('紀錄時間 11:22');
+});

@@ -4,7 +4,7 @@ on:
   pull_request:
     branches: [main]
   push:
-    branches: [work]
+    branches: [work, main]
 
 permissions:
   contents: read
@@ -33,10 +33,22 @@ jobs:
         run: npx playwright-core install --with-deps chromium
       - name: Browser regression and layout tests
         run: npm run test:browser
+      - name: Install WebKit
+        run: npx playwright-core install --with-deps webkit
+      - name: WebKit backup, statistics, AI snapshot and journal
+        env:
+          BROWSER_ENGINE: webkit
+          SCREENSHOT_DIR: test-results/webkit
+        run: |
+          node tests/v05-browser.cjs
+          node tests/stats-v2-browser.cjs
+          node tests/ai-bridge-browser.cjs
+          node tests/journal-flow-browser.cjs
       - name: Upload synthetic screenshots
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: v03-layout-screenshots
+          name: browser-evidence-${{ github.sha }}
           path: test-results/
       - name: Audit production dependencies
         run: npm audit --omit=dev

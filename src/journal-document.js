@@ -1,10 +1,15 @@
 // Read-only export projection. Accounting/consumption always use existing data.js.
 import { cashflow, liquidIntake, transactionDate, isPaid } from './data.js';
 const value = (n, unit='') => n == null ? '未知' : `${n}${unit}`;
-const range = r => `${r.startTime || r.time || '時間未知'}${r.endTime ? '～'+r.endTime : r.startTime ? '～結束未確認' : ''}${r.startTime && r.time && r.time!==r.startTime && r.time!==r.endTime ? '（紀錄時間 '+r.time+'）' : ''}`;
+function range(record) {
+  const { startTime, endTime, time } = record;
+  if (!startTime && !endTime) return time || '時間未知';
+  const interval = (startTime || '開始未確認') + '～' + (endTime || '結束未確認');
+  return time && time !== startTime && time !== endTime ? interval + '（紀錄時間 ' + time + '）' : interval;
+}
 const quantity = r => [['quantity','購買'],['consumedQuantity','本人攝取'],['familyQuantity','家人'],['remainingQuantity','剩餘']].filter(([k])=>r[k]!=null).map(([k,t])=>`${t}${r[k]}${r.unit || ''}`).join('；');
 const note = r => r.note ? `\n備註：${r.note}` : '';
-const money = r => `金額${value(r.amount,' NT$')}；${isPaid(r)?'已付款':r.paid===false?'未付款':'付款未確認'}；付款日期${transactionDate(r) || '未知'}`;
+const money = r => `金額${value(r.amount,' NT$')}；${isPaid(r)?'已付款':r.paid===false || r.status==='未付款'?'未付款':'付款未確認'}；付款日期${transactionDate(r) || '未知'}`;
 const sort = rs => [...rs].sort((a,b)=>(a.startTime || a.time || '99:99').localeCompare(b.startTime || b.time || '99:99'));
 
 export function journalDocumentSections(data, date) {
@@ -15,7 +20,7 @@ export function journalDocumentSections(data, date) {
   add('overview','summary',`本日 ${day.length} 筆紀錄；${flow.groups.purchase.length} 筆購買交易。\n摘要依原始狀態整理；購買不等於本人攝取，開始不等於完成。`);
   for(const r of day.filter(r=>r.type==='journal')) {
     for(const [key,group,label] of [['theme','overview','主題'],['highlight','highlight','亮點'],['wellbeing','body','身體狀況'],['mood','body','心情'],['todo','todo','修正／待辦（原文）'],['note','todo','整理備註']])
-      if(r[key])add(group,`${r.id}:${key}`,`${label}：${r[key]}`);
+      if(r[key])add(group,`${r.id}:${key}`,`${r.time ? r.time+' ' : ''}${label}：${r[key]}`);
   }
   const sleeps=day.filter(r=>r.type==='sleep');
   if(!sleeps.length)add('health','missing-sleep','目前可見資料未找到睡眠紀錄。');

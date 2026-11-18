@@ -19,7 +19,15 @@ async function importComplete(page,value){
  await page.locator('#complete-import').setInputFiles({name:'synthetic-complete.json',mimeType:'application/json',buffer:Buffer.from(typeof value==='string'?value:JSON.stringify(value))});
  await page.locator('#backup-dialog').waitFor({state:'visible'});
 }
-async function apply(page){await page.locator('#backup-apply').click();await page.locator('#backup-dialog').waitFor({state:'hidden'});}
+async function apply(page) {
+  await page.locator('#backup-apply').click();
+  await page.waitForFunction(() => {
+    const dialog = document.querySelector('#backup-dialog');
+    return !dialog?.open || dialog.querySelector('.error')?.textContent;
+  });
+  const dialog = page.locator('#backup-dialog[open]');
+  if (await dialog.count()) throw Error(await dialog.locator('.error').innerText());
+}
 async function exportComplete(page){const download=page.waitForEvent('download');await page.locator('#complete-export').click();return JSON.parse(fs.readFileSync(await (await download).path(),'utf8'));}
 const comparable=x=>{const y=structuredClone(x);delete y.createdAt;delete y.appVersion;return y;};
 (async()=>{
@@ -29,8 +37,35 @@ const comparable=x=>{const y=structuredClone(x);delete y.createdAt;delete y.appV
   const engine=process.env.BROWSER_ENGINE==='webkit'?'webkit':'chromium';
   browser=await (engine==='webkit'?webkit:chromium).launch({headless:true,...(engine==='webkit'?process.env.WEBKIT_PATH?{executablePath:process.env.WEBKIT_PATH}:{}:process.env.CHROME_PATH?{executablePath:process.env.CHROME_PATH}:process.env.CI?{}:{channel:'chrome'})});
   fs.mkdirSync(output,{recursive:true});
+  // Empty userDataDir creates a separate temporary profile per simulated device.
+  const newDevice = options => engine === 'webkit'
+    ? webkit.launchPersistentContext('', { ...options, ...(process.env.WEBKIT_PATH ? {executablePath: process.env.WEBKIT_PATH} : {}) })
+    : browser.newContext(options);
+  if (engine === 'webkit') {
+    const privateContext = await browser.newContext();
+    try {
+      const page = await privateContext.newPage();
+      await page.goto(url);
+      const value = backup('light');
+      await importComplete(page, value);
+      await page.locator('#backup-apply').click();
+      await page.waitForFunction(() => !document.querySelector('#backup-dialog')?.open ||
+        document.querySelector('#backup-dialog .error')?.textContent);
+      const dialog = page.locator('#backup-dialog[open]');
+      if (await dialog.count()) {
+        const message = await dialog.locator('.error').innerText();
+        assert.match(message, /已回復原有資料.*Blob/);
+        await page.screenshot({path: output + '/webkit-private-rollback.png'});
+        await page.locator('#backup-cancel').click();
+        const unchanged = await exportComplete(page);
+        assert.deepEqual([unchanged.records.records, unchanged.photos, unchanged.templates], [[], [], []]);
+        assert.equal(await page.evaluate(() => localStorage.getItem('second-brain-lite-v2')), null);
+        console.log('PASS WebKit ephemeral context: IndexedDB rejected Blob; restore reported rollback; records, photos and templates unchanged.');
+      } else assert.deepEqual(comparable(await exportComplete(page)), comparable(value));
+    } finally { await privateContext.close(); }
+  }
   for(const width of [390,1440])for(const theme of ['light','dark']){
-   const c=await browser.newContext({viewport:{width,height:width===390?844:1000},...(width===390?{isMobile:true,hasTouch:true}:{}),colorScheme:theme});
+   const c=await newDevice({viewport:{width,height:width===390?844:1000},...(width===390?{isMobile:true,hasTouch:true}:{}),colorScheme:theme});
    const p=await c.newPage();const errors=[],external=[];p.on('pageerror',e=>errors.push(e.message));p.on('request',r=>{if(!r.url().startsWith('http://127.0.0.1:4177/')&&!r.url().startsWith('blob:')&&!r.url().startsWith('data:'))external.push(r.url());});
    await p.goto(url);await p.locator('#complete-export').waitFor();
    const data=backup(theme);await importComplete(p,data);
@@ -60,7 +95,7 @@ const comparable=x=>{const y=structuredClone(x);delete y.createdAt;delete y.appV
    fs.writeFileSync(`${output}/v05-${engine}-${width}-${theme}-journal.png`,image);await p.locator('#journal-close').click();
    assert.deepEqual(comparable(await exportComplete(p)),comparable(saved));
    // A separate browser context has separate localStorage AND IndexedDB: real device portability boundary.
-   const c2=await browser.newContext({viewport:{width:390,height:844}});const p2=await c2.newPage();await p2.goto(url);await p2.locator('#complete-import').waitFor();
+   const c2=await newDevice({viewport:{width:390,height:844}});const p2=await c2.newPage();await p2.goto(url);await p2.locator('#complete-import').waitFor();
    assert.equal(await p2.evaluate(()=>localStorage.getItem('second-brain-lite-v2')),null);
    await importComplete(p2,saved);await apply(p2);assert.deepEqual(comparable(await exportComplete(p2)),comparable(saved));
    const conflict=structuredClone(saved);conflict.records.records[0].amount=999;conflict.settings.theme=theme==='light'?'dark':'light';

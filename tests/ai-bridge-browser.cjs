@@ -73,6 +73,24 @@ const server = spawn(process.execPath, [
     assert.equal(snap.records.length, 8);
     assert.equal(snap.pendingTransactions.length, 2);
     assert.equal(snap.transactions.length, 4);
+    const mealSource = data.records.find(r => r.id === 'test-meal');
+    const exported = snap.records.find(r => r.id === mealSource.id);
+    assert.equal(exported.sourceKind, 'ocr');
+    assert.equal(exported.correctedAt, mealSource.correctedAt);
+    assert.equal(exported.updatedAt, mealSource.updatedAt);
+    assert.equal(exported.paid, true);
+    assert.equal(snap.records.find(r => r.id === 'test-coffee').sourceKind, 'manual');
+    assert.deepEqual(snap.pendingTransactions.map(r => [r.id, r.paymentState]), [
+      ['test-unpaid', 'unpaid'], ['test-unknown-date', 'date-unknown'],
+    ]);
+    assert.deepEqual(snap.transactions.map(r => [r.id, r.transactionKind, r.amount]), [
+      ['test-meal', 'purchase', 125], ['test-unknown-amount', 'purchase', null],
+      ['test-refund', 'refund', 20], ['test-reimbursement', 'reimbursement', 10],
+    ]);
+    await page.locator('#ai-sensitive').check();
+    assert.ok((await page.locator('#ai-share-preview').inputValue()).includes(mealSource.provenance));
+    await page.locator('#ai-sensitive').uncheck();
+    assert.ok(!(await page.locator('#ai-share-preview').inputValue()).includes('PRIVATE_TEST_'));
     if (process.env.BRIDGE_TEST_SNAPSHOT) await fs.writeFile(process.env.BRIDGE_TEST_SNAPSHOT, bytes, { mode: 0o600 });
     console.log(`PASS ${isWebkit ? 'WebKit' : 'Chromium'}: iPhone viewport touch, custom range/categories, privacy, unavailable-share fallback, identical share/download and unchanged local data`);
   } finally {
