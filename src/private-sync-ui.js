@@ -19,7 +19,11 @@ export function createSyncUI({storage,onChange}) {
       const item=document.createElement('details'), summary=document.createElement('summary');summary.textContent='衝突 '+c.id+' · 雲端版本 '+c.remote.revision;
       const pre=document.createElement('pre');pre.textContent=JSON.stringify({本機:c.local,雲端:c.remote},null,2);item.append(summary,pre);
       for(const [choice,label] of [['local','保留本機版本'],['cloud','採用雲端版本']]) {
-        const b=document.createElement('button');b.textContent=label;b.disabled=busy||!enabled;
+        const b=document.createElement('button');
+        b.textContent=c.dayDeletion && choice==='local' ? '確認刪除該筆雲端紀錄' : label;
+        const intent=state.dayDeletions?.[c.id];
+        b.disabled=busy||!enabled||(c.dayDeletion && choice==='local' &&
+          (!intent || c.remote.record?.date!==intent.date || c.remote.record?.type!==intent.type));
         b.onclick=()=>run(async active=>{await resolveSyncConflict({storage,adapter,id:c.id,choice,active});onChange();status='衝突已處理，請再同步以核對完整狀態';});item.append(b);
       }
       dialog.querySelector('[data-conflicts]').append(item);
@@ -48,7 +52,8 @@ export function createSyncUI({storage,onChange}) {
   }
   function changed(){
     if(!enabled) return;
-    status='本機有變更 · 等待同步';update();clearTimeout(timer);timer=setTimeout(sync,1200);
+    status='本機有變更 · 等待同步';update();clearTimeout(timer);
+    timer=setTimeout(()=>{ if(busy) changed(); else sync(); },1200);
   }
   window.addEventListener('online',()=>{if(enabled)sync();});
   window.addEventListener('offline',()=>{if(enabled){status='離線：本機繼續保存，頁面恢復連線後重試';update();}});

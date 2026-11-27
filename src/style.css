@@ -1105,3 +1105,11 @@ dialog p {
 .private-sync-dialog input[type=checkbox] { width:auto; }
 .private-sync-dialog pre { white-space:pre-wrap; overflow-wrap:anywhere; max-height:220px; overflow:auto; }
 .private-sync-dialog button { margin:5px; }
+
+.day-management { margin-block: 1rem; padding: 1rem; border: 1px solid var(--line); border-radius: .75rem; }
+.day-management summary { cursor: pointer; }
+#day-delete { color: #a42525; }
+[data-theme="dark"] #day-delete { color: #ffaaaa; }
+.day-category-counts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .35rem 1rem; }
+#day-dialog .dialog-actions { flex-wrap: wrap; }
+#day-dialog [data-day-cancel] { white-space: nowrap; }
