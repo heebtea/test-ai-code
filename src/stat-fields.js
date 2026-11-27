@@ -31,6 +31,7 @@ export function statKeys(type) {
 }
 export function statVersion(r) {
   if (
+    (["coffee", "water", "beverage"].includes(r.type) && r.status === "部分") ||
     r.correctedAt !== undefined ||
     r.mealType !== undefined ||
     r.orderStatus !== undefined ||

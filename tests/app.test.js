@@ -172,6 +172,25 @@ it("UI empty, add, edit same ID, date isolation and delete confirmation", async 
   await Promise.resolve();
   expect(document.querySelector("[data-edit]")).toBeNull();
 });
+it("clears a suggested voucher capacity when recording partial consumption", async () => {
+  document.querySelector("[data-add=coffee]").click();
+  const editor = document.querySelector("#edit-form");
+  const payment = editor.elements.payment;
+  const status = editor.elements.status;
+  const volume = editor.elements.volume;
+  payment.value = "voucher";
+  payment.dispatchEvent(new Event("change"));
+  expect(volume.value).toBe("480");
+  status.value = "部分";
+  status.dispatchEvent(new Event("change"));
+  expect(volume.value).toBe("");
+  editor.elements.time.value = "12:00";
+  editor.requestSubmit();
+  await Promise.resolve();
+  const [record] = JSON.parse(localStorage.getItem(m.STORAGE_KEY)).records;
+  expect(record).toMatchObject({ status: "部分", volume: null, amount: null });
+  expect(document.querySelector(".coffee .metric").textContent).toContain("實際攝取量未知");
+});
 it("UI escapes malicious notes and does not insert HTML", async () => {
   document.querySelector("[data-add=spending]").click();
   document.querySelector("[name=note]").value = "<img src=x onerror=alert(1)>";

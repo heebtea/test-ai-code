@@ -118,9 +118,9 @@ const server = spawn(
         await page.locator("[name=endTime]").fill("10:30");
         await page.locator("#edit-form .save").click();
     await page.locator("#editor").waitFor({state:"hidden"});
-        assert.equal(
+        assert.match(
           await page.locator(".coffee .metric").innerText(),
-          "尚無資料",
+          /飲用中[\s\S]*實際攝取量待確認/,
         );
         await page.locator("[data-add=meal]").click();
         await page.locator("[name=name]").fill("合成餐點");

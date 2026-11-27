@@ -4,8 +4,12 @@ import "./style.css";
 import { addStatFields, normalizeStatFields } from "./stat-fields.js";
 import { openSleepDetail } from "./sleep-detail.js";
 import { openMetricDetail, metricTypes, metricDay } from "./metric-detail.js";
-import { exportComplete, previewComplete, applyComplete, recoverComplete, MAX_BACKUP_BYTES } from "./backup.js";
+import { exportComplete, previewComplete, applyComplete, recoverComplete, prepareDayBackup, MAX_BACKUP_BYTES } from "./backup.js";
 import { guardedWrite, RESTORE_KEY } from "./storage-guard.js";
+import { applyRecordImport, previewRecordImport, MAX_RECORD_IMPORT } from "./record-import.js";
+import { showRecordImport } from "./record-import-ui.js";
+import { deleteDayRecords, hasDayRecovery, restoreDayRecords } from "./day-records.js";
+import { drinkSummary, hydrationSummary, sleepSummary } from "./daily-summary.js";
 import { openAiShare } from "./ai-share.js";
 import { recognizeCard } from "./ocr.js";
 import { planReviewBatch } from "./ocr-review.js";
@@ -41,8 +45,7 @@ import {
   sum,
   cashflow,
   liquidIntake,
-  parseBackup,
-  merge,
+  liquidTypes,
 } from "./data.js";
 const app = document.querySelector("#app");
 const names = {
@@ -56,6 +59,7 @@ const names = {
   sunlight: "日照",
   event: "重要事件",
   journal: "小誌文字",
+  draft: "待確認草稿",
 };
 const labels = {
   minutes: "時間（分鐘）",
@@ -100,6 +104,7 @@ try {
     "無法讀取本機資料或資料毀損。已停止寫入，原內容未覆寫。請先匯出原始儲存內容或檢查瀏覽器設定。";
 }
 const syncUI = createSyncUI({storage,onChange:()=>{ data=loadRecords(storage); render(); }});
+const summaryMarkup = (lines) => lines.map((line) => `<span class="metric-line">${esc(line)}</span>`).join("");
 const fmt = (v, unit = "") =>
   v === null ? "尚無資料" : `${v.toLocaleString("zh-TW")} ${unit}`;
 function total(rs, k, u) {
@@ -163,25 +168,18 @@ function render() {
   document.documentElement.dataset.theme = theme;
   const liquids = liquidIntake(data, date);
   const flow = cashflow(data, date);
-  app.innerHTML = `<div class="shell"><header class="topbar"><div class="brand">✳ SECOND BRAIN LITE v0.6</div><button id="theme" class="theme-toggle">${theme === "dark" ? "淺色" : "深色"}模式</button></header><main><div class="intro"><div><h1>Project Second Brain</h1><p>生活小誌 · 留下今天的一點線索。</p></div></div><div class="notice"><span id="sync-state">本機模式 · 尚未連接雲端</span>。完整備份包含生活紀錄、照片、模板及設定；請自行轉移備份檔，勿上傳公開 GitHub。</div><p id="message" role="status">${esc(message)}</p><div class="toolbar"><button type="button" id="ai-share" ${blocked ? "disabled" : ""}>分享資料給 AI</button><button id="private-sync" ${blocked ? "disabled" : ""}>私人同步設定</button><button id="complete-export">匯出完整備份（含照片／模板）</button><label class="file-button">還原完整／舊版備份<input id="complete-import" type="file" accept="application/json,.json" ${blocked ? "disabled" : ""}></label><button id="export">匯出紀錄 JSON（不含照片）</button><label class="file-button">匯入 JSON 備份<input id="import" type="file" accept="application/json,.json" ${blocked ? "disabled" : ""}></label>${blocked ? '<button id="raw">匯出原始儲存內容</button>' : ""}</div><div class="section-heading"><h2>每日總覽</h2><div class="date-nav"><button id="prev" aria-label="前一天">‹</button><input id="date" type="date" min="1900-01-01" max="2199-12-31" value="${date}" aria-label="選擇日期"><button id="next" aria-label="後一天">›</button></div></div><div class="dashboard"><section class="card hydration"><div class="card-head"><h2>今日已飲用總量</h2></div><button class="card-toggle" aria-expanded="false"><span class="metric">${fmt(liquids.value, "mL 已飲用")}${liquids.unknown ? `（${liquids.unknown} 筆容量未知）` : ""}</span><span class="card-cue">查看白開水、咖啡及其他飲品明細 ↗</span></button><details class="record-details"><summary>分類明細</summary><p>白開水：${fmt(liquids.breakdown.water.value, "mL")} · 咖啡：${fmt(liquids.breakdown.coffee.value, "mL")} · 其他飲品：${fmt(liquids.breakdown.beverage.value, "mL")}</p><p>${liquids.pending} 筆飲用中／未確認，未計入總量；已飲用但容量未知者也不推算。每筆紀錄只計一次。</p></details></section>${types
+  app.innerHTML = `<div class="shell"><header class="topbar"><div class="brand">✳ SECOND BRAIN LITE v0.6</div><button id="theme" class="theme-toggle">${theme === "dark" ? "淺色" : "深色"}模式</button></header><main><div class="intro"><div><h1>Project Second Brain</h1><p>生活小誌 · 留下今天的一點線索。</p></div></div><div class="notice"><span id="sync-state">本機模式 · 尚未連接雲端</span>。完整備份包含生活紀錄、照片、模板及設定；請自行轉移備份檔，勿上傳公開 GitHub。</div><p id="message" role="status">${esc(message)}</p><div class="toolbar"><button type="button" id="ai-share" ${blocked ? "disabled" : ""}>分享資料給 AI</button><button id="private-sync" ${blocked ? "disabled" : ""}>私人同步設定</button><button id="complete-export">匯出完整備份（含照片／模板）</button><label class="file-button">還原完整／舊版備份<input id="complete-import" type="file" accept="application/json,.json" ${blocked ? "disabled" : ""}></label><button id="export">匯出紀錄 JSON（不含照片）</button><label class="file-button">匯入 JSON／補正<input id="import" type="file" accept="application/json,.json" ${blocked ? "disabled" : ""}></label>${blocked ? '<button id="raw">匯出原始儲存內容</button>' : ""}</div><div class="section-heading"><h2>每日總覽</h2><div class="date-nav"><button id="prev" aria-label="前一天">‹</button><input id="date" type="date" min="1900-01-01" max="2199-12-31" value="${date}" aria-label="選擇日期"><button id="next" aria-label="後一天">›</button></div></div><div class="dashboard"><section class="card hydration"><div class="card-head"><h2>今日已飲用總量</h2></div><button class="card-toggle" aria-expanded="false"><span class="metric">${summaryMarkup(hydrationSummary(liquids))}</span><span class="card-cue">查看白開水、咖啡及其他飲品明細 ↗</span></button><details class="record-details"><summary>分類明細</summary><p>白開水：${fmt(liquids.breakdown.water.value, "mL")} · 咖啡：${fmt(liquids.breakdown.coffee.value, "mL")} · 其他飲品：${fmt(liquids.breakdown.beverage.value, "mL")}</p><p>${liquids.pending} 筆飲用中／未確認，未計入總量；已飲用或部分攝取的已知數值各計一次。</p></details></section>${types
     .filter((type) => type !== "event" && type !== "journal")
     .map((type) => {
       const rs = type === "spending" ? metricDay(data,date,type).items : rows(data, date, type);
       let summary = "尚無資料";
-      if (type === "sleep") summary = total(rs, "minutes", "分鐘");
-      if (type === "water") summary = total(rs.filter((r) => r.status === "已飲用"), "volume", "mL 已飲用");
-      if (type === "beverage") summary = total(rs.filter((r) => r.status === "已飲用"), "volume", "mL 已飲用");
-      if (type === "coffee")
-        summary = total(
-          rs.filter((r) => r.status === "已飲用"),
-          "volume",
-          "mL 已飲用",
-        );
+      if (type === "sleep") summary = sleepSummary(data, date, rs);
+      if (liquidTypes.includes(type)) summary = drinkSummary(rs, type);
       if (type === "sunlight") summary = total(rs, "minutes", "分鐘");
       if (type === "activity") summary = fmt(metricDay(data,date,type).value,"步已確認（排除重疊）");
       if (type === "meal" && rs.length) { const m=metricDay(data,date,type); summary=m.value===null?m.state:fmt(m.value,"餐本人已確認食用"); }
       if (type === "spending") summary = fmt(metricDay(data,date,type).value,"NT$ 已確認淨支出");
-      return `<section class="card ${type}"><div class="card-head"><h2>${names[type]}</h2>${type === "sleep" ? '<button type="button" class="sleep-view" data-sleep-view>睡眠圖</button>' : metricTypes.includes(type) ? `<button type="button" class="metric-view" data-metric-view="${type}">日／週／月</button>` : ""}<button data-add="${type}" ${blocked ? "disabled" : ""}>新增</button></div><button class="card-toggle" aria-expanded="false" aria-label="展開${names[type]}明細"><span class="metric">${summary}</span><span class="card-cue">查看紀錄 ↗</span></button><details class="record-details"><summary>紀錄明細（${rs.length}）</summary>${type === "spending" ? `<p>依付款日／購買日計算；咖啡券只在購券時記帳。</p><p>購買：${fmt(flow.totals.purchase.value,"NT$")} · 退費：${fmt(flow.totals.refund.value,"NT$")} · 回補：${fmt(flow.totals.reimbursement.value,"NT$")} · 已確認淨支出：${fmt(flow.knownNet,"NT$")}（${flow.unknown} 筆金額未知）</p>` : ""}${
+      return `<section class="card ${type}"><div class="card-head"><h2>${names[type]}</h2>${type === "sleep" ? '<button type="button" class="sleep-view" data-sleep-view>睡眠圖</button>' : metricTypes.includes(type) ? `<button type="button" class="metric-view" data-metric-view="${type}">日／週／月</button>` : ""}<button data-add="${type}" ${blocked ? "disabled" : ""}>新增</button></div><button class="card-toggle" aria-expanded="false" aria-label="展開${names[type]}明細"><span class="metric">${summaryMarkup([summary].flat())}</span><span class="card-cue">查看紀錄 ↗</span></button><details class="record-details"><summary>紀錄明細（${rs.length}）</summary>${type === "spending" ? `<p>依付款日／購買日計算；咖啡券只在購券時記帳。</p><p>購買：${fmt(flow.totals.purchase.value,"NT$")} · 退費：${fmt(flow.totals.refund.value,"NT$")} · 回補：${fmt(flow.totals.reimbursement.value,"NT$")} · 已確認淨支出：${fmt(flow.knownNet,"NT$")}（${flow.unknown} 筆金額未知）</p>` : ""}${
         type === "activity"
           ? `<p>已確認時間（排除重疊）：${fmt(metricDay(data,date,type).extra.minutes.value,"分鐘")}</p>`
           : ""
@@ -196,7 +194,10 @@ function render() {
           `<li><button class="timeline-event" data-event="${entry.record.id}"><time>${esc(entry.time)}</time><span><b>${esc(entry.label)}</b><small>${esc(entry.record.name || entry.record.status)}</small></span><img data-photo="${entry.record.id}" alt="事件照片" hidden></button></li>`,
       )
       .join("") || "<li>尚無有時間的紀錄</li>"
-  }</ul><button data-add="event" ${blocked ? "disabled" : ""}>＋ 新增重要事件</button></details>${templateView()}<section class="journal-banner"><div><small>THE DAILY EDIT</small><h2>把今天，收進小誌裡。</h2><p>用已記錄的片段，留下一張屬於今天的直式小誌。</p></div><button id="journal">產生今日小誌</button></section><p class="footer">睡眠以起床日期記錄；活動請記錄不重疊的區段。空白數值代表未知，只有明確輸入 0 才是零。</p></main></div><dialog id="editor" aria-labelledby="dialog-title"></dialog><dialog id="confirm" aria-labelledby="confirm-title"></dialog><dialog id="event-detail"></dialog><dialog id="journal-dialog"></dialog><dialog id="template-editor"></dialog><dialog id="ocr-dialog" aria-labelledby="ocr-title"></dialog><dialog id="backup-dialog" aria-label="完整備份還原審核"></dialog><dialog id="sleep-dialog" aria-label="睡眠詳情"></dialog><dialog id="metric-dialog" aria-label="日週月統計詳情"></dialog>`;
+  }</ul><button data-add="event" ${blocked ? "disabled" : ""}>＋ 新增重要事件</button></details>
+  <details class="day-management"><summary>當日紀錄管理</summary><p>選定日期 ${date}。依紀錄日期處理，其他日期的紀錄會保留。</p>
+  <div class="dialog-actions"><button id="day-delete" type="button" ${blocked || !data.records.some((record) => record.date === date) ? "disabled" : ""}>刪除當日全部紀錄</button>
+  <button id="day-restore" type="button" hidden>復原上次當日刪除</button></div></details>${templateView()}<section class="journal-banner"><div><small>THE DAILY EDIT</small><h2>把今天，收進小誌裡。</h2><p>用已記錄的片段，留下一張屬於今天的直式小誌。</p></div><button id="journal">產生今日小誌</button></section><p class="footer">睡眠以起床日期記錄；活動請記錄不重疊的區段。空白數值代表未知，只有明確輸入 0 才是零。</p></main></div><dialog id="day-dialog" aria-labelledby="day-dialog-title"></dialog><dialog id="editor" aria-labelledby="dialog-title"></dialog><dialog id="confirm" aria-labelledby="confirm-title"></dialog><dialog id="event-detail"></dialog><dialog id="journal-dialog"></dialog><dialog id="template-editor"></dialog><dialog id="ocr-dialog" aria-labelledby="ocr-title"></dialog><dialog id="backup-dialog" aria-label="完整備份還原審核"></dialog><dialog id="sleep-dialog" aria-label="睡眠詳情"></dialog><dialog id="metric-dialog" aria-label="日週月統計詳情"></dialog>`;
   applyTemplateStyles(
     document.querySelector(".template-sheet"),
     selectedTemplate,
@@ -326,6 +327,20 @@ function render() {
             });
         })),
   );
+  document.querySelector("#day-delete").onclick = () => showDayDelete(date, data);
+  const restoreDay = document.querySelector("#day-restore");
+  try { restoreDay.hidden = blocked || !hasDayRecovery(date, storage); } catch {}
+  restoreDay.onclick = () => {
+    const selected = date;
+    confirmAction(`復原 ${selected} 上次刪除的紀錄？相同 ID 的現有版本會保留。`, async () => {
+      const result = await restoreDayRecords(selected, storage);
+      data = loadRecords(storage);
+      message = `${selected} 已復原 ${result.restored} 筆，保留 ${result.kept} 筆現有版本。`;
+      render();
+      document.querySelector(".day-management").open = true;
+      syncUI.changed();
+    });
+  };
   document.querySelector("#complete-export").onclick = async () => {
     try { download(await exportComplete(storage), `second-brain-complete-${localDate()}.json`); }
     catch (err) { message = "完整備份未匯出：" + err.message; render(); }
@@ -362,18 +377,15 @@ function render() {
     const file = e.target.files[0];
     if (!file) return;
     try {
-      if (file.size > 10000000) throw Error("檔案過大");
-      const incoming = parseBackup(await file.text());
-      const preview = merge(data, incoming);
-      confirmAction(
-        `匯入 ${incoming.records.length} 筆：新增 ${preview.added} 筆、衝突 ${preview.conflicts} 筆（保留本機版本）。相同 ID 不重複加入；不刪除或覆寫任何現有紀錄。建議先匯出備份。`,
-        async () => {
-          const result = merge(data, incoming);
-          await save(result.data);
-          message = `已新增 ${result.added} 筆，保留 ${result.conflicts} 筆本機衝突版本。`;
-          render();
-        },
-      );
+      if (file.size > MAX_RECORD_IMPORT) throw Error("檔案超過 10 MB");
+      const preview = previewRecordImport(await file.text(), storage);
+      showRecordImport(document.querySelector("#confirm"), preview, names, esc, async (choices) => {
+        const result = await applyRecordImport(preview, choices, storage);
+        data = loadRecords(storage);
+        message = `匯入完成。新增 ${result.added} 筆，更新 ${result.updated} 筆，相同 ${result.same} 筆，略過 ${result.skipped} 筆，驗證失敗 ${result.invalid} 筆。`;
+        render();
+        if (result.added || result.updated) syncUI.changed();
+      });
     } catch (err) {
       message = "匯入失敗：" + err.message;
       render();
@@ -391,6 +403,54 @@ function download(text, name) {
   a.download = name;
   a.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+function showDayDelete(selected, snapshot) {
+  const dialog = document.querySelector("#day-dialog");
+  const records = snapshot.records.filter((record) => record.date === selected);
+  const counts = new Map();
+  for (const { type } of records) counts.set(type, (counts.get(type) || 0) + 1);
+  let backup;
+  dialog.innerHTML = `<h2 id="day-dialog-title">刪除當日全部紀錄</h2>
+    <p><strong>${selected}</strong> 共 <strong>${records.length} 筆</strong>。只處理這一天的紀錄，包含這天的小誌文字。</p>
+    <ul class="day-category-counts">${[...types, "draft"].map((type) => `<li>${names[type]} ${counts.get(type) ?? 0} 筆</li>`).join("")}</ul>
+    <p>依紀錄日期刪除。其他日期的原始紀錄、個人設定、模板和照片資源會保留。啟用私人同步時，刪除也會同步。</p>
+    <p id="day-delete-step" role="status"></p><p class="error" role="alert"></p>
+    <div class="dialog-actions"><button type="button" data-day-cancel>取消</button>
+    <button type="button" data-day-download hidden>下載當日備份</button>
+    <button type="button" data-day-next>繼續並建立備份</button></div>`;
+  const proceed = dialog.querySelector("[data-day-next]");
+  const cancel = dialog.querySelector("[data-day-cancel]");
+  const downloadButton = dialog.querySelector("[data-day-download]");
+  cancel.onclick = () => dialog.close();
+  downloadButton.onclick = () => download(backup.text, `second-brain-day-${selected}.json`);
+  proceed.onclick = async () => {
+    proceed.disabled = cancel.disabled = true;
+    const preventCancel = (event) => event.preventDefault();
+    dialog.addEventListener("cancel", preventCancel);
+    try {
+      if (!backup) {
+        backup = await prepareDayBackup(selected, snapshot, storage);
+        proceed.textContent = `確認刪除 ${selected}`;
+        downloadButton.hidden = false;
+        dialog.querySelector("#day-delete-step").textContent = "已建立當日備份，可先下載。確認後也可從當日管理復原。";
+        downloadButton.focus();
+        return;
+      }
+      const deleted = await deleteDayRecords(backup, storage);
+      data = loadRecords(storage);
+      message = `${selected} 已刪除 ${deleted} 筆紀錄，可在當日紀錄管理復原。`;
+      dialog.close();
+      render();
+      document.querySelector(".day-management").open = true;
+      syncUI.changed();
+    } catch (error) {
+      dialog.querySelector(".error").textContent = "刪除未完成：" + error.message;
+    } finally {
+      proceed.disabled = cancel.disabled = false;
+      dialog.removeEventListener("cancel", preventCancel);
+    }
+  };
+  dialog.showModal();
 }
 function confirmAction(text, action) {
   const d = document.querySelector("#confirm");
@@ -628,6 +688,7 @@ function openOcr(initialFile, showDrafts = false) {
     spending: "花費",
     event: "時間軸事件",
     journal: "小誌文字",
+  draft: "待確認草稿",
     unclassified: "待分類",
   };
   const fieldLabels = {
@@ -1179,21 +1240,38 @@ function edit(type, record) {
     ...(type === "sunlight" ? { source: "" } : {}),
   };
   const d = document.querySelector("#editor");
-  d.innerHTML = `<form id="edit-form"><h2 id="dialog-title">${record ? "編輯" : "新增"}${names[type]}</h2><p>${r.date} · 空白代表未知。餐點紀錄不代表已食用；只有「吃完」才算完整食用。${type === "coffee" ? "兌換券請勿填金額；飲用中不計入已飲用量。購買日與飲用紀錄日分開計算。" : ""}</p><div id="form-fields"><label>${type === "meal" ? "預定／實際用餐日期" : "紀錄日期"}<input name="date" type="date" value="${r.date}" required></label>${type === "journal" ? ["theme", "highlight", "wellbeing", "mood", "todo"].map((key, i) => `<label>${["每日主題", "今日亮點", "身體狀況", "心情", "待辦事項"][i]}<textarea name="${key}" maxlength="500">${esc(r[key])}</textarea></label>`).join("") : ""}${type === "beverage" ? `<label>飲品名稱<input name="name" maxlength="100" required value="${esc(r.name)}"></label><label>付款狀態<select name="paid"><option value="unknown" ${r.paid === null ? "selected" : ""}>未確認</option><option value="yes" ${r.paid === true ? "selected" : ""}>已付款</option><option value="no" ${r.paid === false ? "selected" : ""}>未付款</option></select></label><label>付款日期<input type="date" name="paymentDate" value="${r.paymentDate ?? ""}"></label><label>開始飲用<input name="startTime" type="time" value="${r.startTime}"></label><label>結束飲用<input name="endTime" type="time" value="${r.endTime}"></label>` : ""}${type === "sleep" ? `<label>核心睡眠（分鐘；未知留空）<input name="core" type="number" min="0" max="1440" value="${r.core ?? ""}"></label><label>清醒（分鐘；不含於總睡眠）<input name="awake" type="number" min="0" max="1440" value="${r.awake ?? ""}"></label><label class="sleep-segments-input">逐時分段（進階；每行：含時區開始,結束,awake／rem／core／deep）<textarea name="sleepSegments" rows="4" placeholder="2026-10-28T01:00:00+08:00,2026-10-28T01:10:00+08:00,awake">${esc((r.segments || []).map((s) => [s.start,s.end,s.stage].join(",")).join("\n"))}</textarea></label>` : ""}${type === "event" ? `<label>事件名稱<input name="name" maxlength="100" required value="${esc(r.name)}"></label>` : ""}${type === "coffee" ? `<label>開始飲用<input name="startTime" type="time" value="${r.startTime ?? ""}"></label><label>結束飲用<input name="endTime" type="time" value="${r.endTime ?? ""}"></label>` : ""}${type === "water" ? `<label>裝水容量（mL，不代表已喝完）<input name="capacity" type="number" min="0" max="100000" step="1" value="${r.capacity ?? ""}"></label><label>開始飲水<input name="startTime" type="time" value="${r.startTime ?? ""}"></label><label>結束飲水<input name="endTime" type="time" value="${r.endTime ?? ""}"></label>` : ""}${type === "meal" ? `<label>訂購日期（未知留空）<input name="orderDate" type="date" value="${r.orderDate ?? ""}"></label><label>餐點名稱<input name="name" maxlength="100" required value="${esc(r.name)}"></label><label>付款狀態<select name="paid"><option value="unknown" ${r.paid === null ? "selected" : ""}>未確認</option><option value="yes" ${r.paid === true ? "selected" : ""}>已付款</option><option value="no" ${r.paid === false ? "selected" : ""}>未付款</option></select></label><label>實際付款日期<input type="date" name="paymentDate" value="${r.paymentDate ?? ""}"></label><label>開始用餐<input type="time" name="startTime" value="${r.startTime}"></label><label>結束用餐<input type="time" name="endTime" value="${r.endTime}"></label>` : ""}${type === "sunlight" ? `<label>來源（如 Apple Watch）<input name="source" maxlength="100" value="${esc(r.source)}"></label>` : ""}${type === "coffee" ? `<label>實際購買日期（未知留空）<input name="purchaseDate" type="date" value="${r.purchaseDate === undefined ? r.date : (r.purchaseDate ?? "")}"></label>` : ""}${Object.entries(
+  d.innerHTML = `<form id="edit-form"><h2 id="dialog-title">${record ? "編輯" : "新增"}${names[type]}</h2><p>${r.date} · 空白代表未知。餐點紀錄不代表已食用；只有「吃完」才算完整食用。${type === "coffee" ? "兌換券請勿填金額；飲用中不計量；部分攝取請填實際飲用量。購買日與飲用紀錄日分開計算。" : ""}</p><div id="form-fields"><label>${type === "meal" ? "預定／實際用餐日期" : "紀錄日期"}<input name="date" type="date" value="${r.date}" required></label>${type === "journal" ? ["theme", "highlight", "wellbeing", "mood", "todo"].map((key, i) => `<label>${["每日主題", "今日亮點", "身體狀況", "心情", "待辦事項"][i]}<textarea name="${key}" maxlength="500">${esc(r[key])}</textarea></label>`).join("") : ""}${type === "beverage" ? `<label>飲品名稱<input name="name" maxlength="100" required value="${esc(r.name)}"></label><label>付款狀態<select name="paid"><option value="unknown" ${r.paid === null ? "selected" : ""}>未確認</option><option value="yes" ${r.paid === true ? "selected" : ""}>已付款</option><option value="no" ${r.paid === false ? "selected" : ""}>未付款</option></select></label><label>付款日期<input type="date" name="paymentDate" value="${r.paymentDate ?? ""}"></label><label>開始飲用<input name="startTime" type="time" value="${r.startTime}"></label><label>結束飲用<input name="endTime" type="time" value="${r.endTime}"></label>` : ""}${type === "sleep" ? `<label>核心睡眠（分鐘；未知留空）<input name="core" type="number" min="0" max="1440" value="${r.core ?? ""}"></label><label>清醒（分鐘；不含於總睡眠）<input name="awake" type="number" min="0" max="1440" value="${r.awake ?? ""}"></label><label class="sleep-segments-input">逐時分段（進階；每行：含時區開始,結束,awake／rem／core／deep）<textarea name="sleepSegments" rows="4" placeholder="2026-10-28T01:00:00+08:00,2026-10-28T01:10:00+08:00,awake">${esc((r.segments || []).map((s) => [s.start,s.end,s.stage].join(",")).join("\n"))}</textarea></label>` : ""}${type === "event" ? `<label>事件名稱<input name="name" maxlength="100" required value="${esc(r.name)}"></label>` : ""}${type === "coffee" ? `<label>開始飲用<input name="startTime" type="time" value="${r.startTime ?? ""}"></label><label>結束飲用<input name="endTime" type="time" value="${r.endTime ?? ""}"></label>` : ""}${type === "water" ? `<label>裝水容量（mL，不代表已喝完）<input name="capacity" type="number" min="0" max="100000" step="1" value="${r.capacity ?? ""}"></label><label>開始飲水<input name="startTime" type="time" value="${r.startTime ?? ""}"></label><label>結束飲水<input name="endTime" type="time" value="${r.endTime ?? ""}"></label>` : ""}${type === "meal" ? `<label>訂購日期（未知留空）<input name="orderDate" type="date" value="${r.orderDate ?? ""}"></label><label>餐點名稱<input name="name" maxlength="100" required value="${esc(r.name)}"></label><label>付款狀態<select name="paid"><option value="unknown" ${r.paid === null ? "selected" : ""}>未確認</option><option value="yes" ${r.paid === true ? "selected" : ""}>已付款</option><option value="no" ${r.paid === false ? "selected" : ""}>未付款</option></select></label><label>實際付款日期<input type="date" name="paymentDate" value="${r.paymentDate ?? ""}"></label><label>開始用餐<input type="time" name="startTime" value="${r.startTime}"></label><label>結束用餐<input type="time" name="endTime" value="${r.endTime}"></label>` : ""}${type === "sunlight" ? `<label>來源（如 Apple Watch）<input name="source" maxlength="100" value="${esc(r.source)}"></label>` : ""}${type === "coffee" ? `<label>實際購買日期（未知留空）<input name="purchaseDate" type="date" value="${r.purchaseDate === undefined ? r.date : (r.purchaseDate ?? "")}"></label>` : ""}${Object.entries(
     fields[type],
   )
     .map(
       ([k, max]) =>
-        `<label>${type === "water" && k === "volume" ? "實際已喝水量（mL；飲用中留空）" : labels[k]}<input name="${k}" type="number" min="0" max="${max}" step="${k === "amount" ? "0.01" : "1"}" value="${r[k] ?? ""}"></label>`,
+        `<label>${liquidTypes.includes(type) && k === "volume" ? (type === "water" ? "實際已喝水量（mL；飲用中留空）" : "記錄量（mL；部分請填實際攝取量）") : labels[k]}<input name="${k}" type="number" min="0" max="${max}" step="${k === "amount" ? "0.01" : "1"}" value="${r[k] ?? ""}"></label>`,
     )
     .join(
       "",
     )}${type === "meal" ? "" : `<label>時間<input type="time" name="time" value="${r.time}"></label>`}<label>狀態<select name="status">${statuses[type].map((s) => `<option ${r.status === s ? "selected" : ""}>${s}</option>`).join("")}</select></label>${type === "coffee" ? `<label>付款方式<select name="payment"><option value="purchase" ${r.payment === "purchase" ? "selected" : ""}>購買</option><option value="voucher" ${r.payment === "voucher" ? "selected" : ""}>兌換券（不重複記帳）</option></select></label>` : ""}<label>紀錄來源<input name="provenance" maxlength="500" value="${esc(r.provenance ?? (record ? "" : "手動輸入"))}"></label><label>說明<input name="note" maxlength="500" value="${esc(r.note)}"></label></div><p class="error" role="alert"></p><div class="dialog-actions"><button type="button" id="cancel">取消</button><button class="save">儲存</button></div></form>`;
   addStatFields(d.querySelector("#form-fields"), r);
   d.querySelector("#cancel").onclick = () => d.close();
-  if (type === 'coffee') d.querySelector('[name=payment]').onchange = e => {
-    if (e.target.value === 'voucher' && d.querySelector('[name=volume]').value === '') d.querySelector('[name=volume]').value = '480';
-  };
+  if (liquidTypes.includes(type)) {
+    const volume = d.querySelector('[name=volume]');
+    const status = d.querySelector('[name=status]');
+    const payment = d.querySelector('[name=payment]');
+    let enteredVolume = false;
+    let voucherDefault = false;
+    volume.oninput = () => { enteredVolume = true; voucherDefault = false; };
+    if (payment) payment.onchange = () => {
+      if (payment.value === 'voucher' && status.value !== '部分' && volume.value === '') {
+        volume.value = '480';
+        voucherDefault = true;
+      }
+    };
+    status.onchange = () => {
+      if (status.value === '部分' && (voucherDefault || (!enteredVolume && r.status !== '部分'))) {
+        volume.value = '';
+        voucherDefault = false;
+      }
+    };
+  }
   d.querySelector("form").onsubmit = async (e) => {
     e.preventDefault();
     try {
@@ -1269,8 +1347,9 @@ function showBackup(preview) {
       data = loadRecords(storage); templates = await listTemplates();
       theme = storage.getItem(THEME_KEY) === 'dark' ? 'dark' : 'light';
       selectedTemplate = templates.find(t=>t.id === storage.getItem('second-brain-template')) || baseTemplate();
-      message = `完整還原完成：寫入 ${result.applied} 項，保留／跳過 ${result.skipped} 項，無法解析 ${result.errors.length} 項。尚未跨裝置自動同步。`;
+      message = `完整還原完成：寫入 ${result.applied} 項，保留／跳過 ${result.skipped} 項，無法解析 ${result.errors.length} 項。${result.recordsRestoredFromDay ? "私人同步啟用時將排入同步。" : "尚未跨裝置自動同步。"}`;
       d.close(); render();
+      if (result.recordsRestoredFromDay) syncUI.changed();
     } catch (err) {
       d.querySelector('.error').textContent = err.message;
       if (storage.getItem(RESTORE_KEY)) blocked = true;

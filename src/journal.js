@@ -1,4 +1,4 @@
-import { rows, sum, expenses, cashflow, liquidIntake } from "./data.js";
+import { rows, sum, expenses, cashflow, liquidIntake, isConsumedLiquid } from "./data.js";
 import { baseTemplate } from "./templates.js";
 import { journalDocumentSections } from "./journal-document.js";
 import { renderJournalTemplate } from "./journal-layout.js";
@@ -57,12 +57,12 @@ export function journalSections(data, date) {
   add("日照", rows(data, date, "sunlight"), "minutes", "分鐘");
   add(
     "咖啡已飲用",
-    rows(data, date, "coffee").filter((r) => r.status === "已飲用"),
+    rows(data, date, "coffee").filter(isConsumedLiquid),
     "volume",
     "mL",
   );
-  add("飲水", rows(data, date, "water").filter((r) => r.status === "已飲用"), "volume", "mL");
-  add("其他飲品已飲用", rows(data,date,"beverage").filter(r=>r.status === "已飲用"), "volume", "mL");
+  add("飲水", rows(data, date, "water").filter(isConsumedLiquid), "volume", "mL");
+  add("其他飲品已飲用", rows(data,date,"beverage").filter(isConsumedLiquid), "volume", "mL");
   const liquids = liquidIntake(data, date);
   if (liquids.value !== null)
     result.push({ title: "今日已飲用總量", value: `${liquids.value.toLocaleString("zh-TW")} mL${liquids.unknown ? `（${liquids.unknown} 筆未提供）` : ""}` });
@@ -79,7 +79,7 @@ export function journalSections(data, date) {
   }
   if (flow.knownNet !== null) result.push({title:'已確認淨支出',value:`${flow.knownNet} NT$（${flow.unknown} 筆金額未知）`});
   const drinks=data.records.filter(r=>r.date === date && ['coffee','beverage','water'].includes(r.type));
-  if(drinks.length)result.push({title:'飲品明細',value:drinks.map(r=>`${r.startTime || r.time || '時間未知'} ${r.name || names[r.type]} ${r.volume ?? '容量未知'}${r.volume != null?' mL':''}（${r.status}）`).join('\n')});
+  if(drinks.length)result.push({title:'飲品明細',value:drinks.map(r=>`${r.startTime || r.time || '時間未知'} ${r.name || names[r.type]} ${r.volume ?? (r.capacity != null ? '裝水容量 ' + r.capacity + ' mL' : '容量未知')}${r.volume != null?' mL':''}（${r.status}）`).join('\n')});
   for (const r of rows(data, date, "journal"))
     for (const [key, label] of [
       ["theme", "每日主題"],
