@@ -1105,3 +1105,24 @@ dialog p {
 .private-sync-dialog input[type=checkbox] { width:auto; }
 .private-sync-dialog pre { white-space:pre-wrap; overflow-wrap:anywhere; max-height:220px; overflow:auto; }
 .private-sync-dialog button { margin:5px; }
+
+.metric-line { display: block; }
+.metric-line + .metric-line { font-size: .75em; margin-block-start: .25rem; }
+.day-management { margin-block: 1rem; padding: 1rem; border: 1px solid var(--line); border-radius: .75rem; }
+.day-management summary { cursor: pointer; }
+#day-delete { color: #a42525; }
+[data-theme="dark"] #day-delete { color: #ffaaaa; }
+.day-category-counts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .35rem 1rem; }
+#day-dialog .dialog-actions { flex-wrap: wrap; }
+#day-dialog [data-day-cancel] { white-space: nowrap; }
+.record-import-mode, .record-row-choice { display: grid; gap: .3rem; margin-block: .6rem; }
+.record-import-mode select, .record-row-choice select { min-height: 44px; font: inherit; }
+.record-review-rows { max-height: min(36vh, 28rem); overflow: auto; overscroll-behavior: contain; }
+.record-review-item { padding-block: .5rem; border-bottom: 1px solid var(--line); }
+.record-review-title { margin: 0; font-weight: 700; }
+.record-review-rows details { margin-block: .6rem; }
+.record-review-table { width: 100%; table-layout: fixed; border-collapse: collapse; font-size: .875rem; }
+.record-review-table :is(th, td) { padding: .35rem; text-align: start; vertical-align: top; border-bottom: 1px solid var(--line); overflow-wrap: anywhere; white-space: pre-wrap; }
+.record-review-table th:first-child { width: 26%; }
+.record-field-changed { background: color-mix(in srgb, currentColor 8%, transparent); }
+.record-row-choice[hidden] { display: none; }

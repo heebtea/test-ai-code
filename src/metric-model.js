@@ -5,6 +5,8 @@ import {
   transactions,
   transactionDate,
   isPaid,
+  isConsumedLiquid,
+  liquidTypes,
 } from "./data.js";
 export const metricTypes = [
   "coffee",
@@ -107,7 +109,7 @@ export function dayState(day) {
   }
   return day.value === 0
     ? "已確認為零"
-    : day.unknown || day.pending || day.excluded
+    : day.unknown || day.pending || day.excluded || day.extra?.partial
       ? "已確認部分合計"
       : "已確認合計";
 }
@@ -149,10 +151,11 @@ export function metricDay(data, date, type) {
         ? r.status === "已記錄"
         : type === "meal"
           ? ["部分", "吃完"].includes(r.status)
-          : r.status === "已飲用",
+          : isConsumedLiquid(r),
     );
     pending = items.length - accepted.length;
   }
+  if (liquidTypes.includes(type)) extra.partial = accepted.filter((r) => r.status === "部分").length;
   const field =
     type === "activity"
       ? "steps"
@@ -251,6 +254,7 @@ export function metricPeriod(data, anchor, period, type) {
     ),
     warnings: days.flatMap((d) => d.warnings.map((w) => d.date + "：" + w)),
   };
+  if (liquidTypes.includes(type)) result.partial = days.reduce((n, d) => n + d.extra.partial, 0);
   if (type === "activity")
     result.minutes = {
       value: total(days.map((d) => d.extra.minutes.value)),

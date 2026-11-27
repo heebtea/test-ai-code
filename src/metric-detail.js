@@ -239,10 +239,11 @@ export function openMetricDetail(dialog, source, anchorDate, metricType) {
       row(
         overview,
         "確認喝完杯／筆數",
-        stats.confirmed + "（未知容量仍保留杯數）",
+        (stats.confirmed - stats.partial) + "（未知容量仍保留杯數）",
       );
+      if (stats.partial) row(overview, "部分攝取", stats.partial + " 筆");
       overview.append(
-        el("p", "", "只有「已飲用」計入容量；購買、兌換或開喝不代表喝完。"),
+        el("p", "", "計入已飲用量及明確填寫的部分攝取量；購買、兌換與裝水容量分開記錄。"),
       );
     }
     if (metricType === "activity")

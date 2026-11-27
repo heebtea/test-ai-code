@@ -1,5 +1,5 @@
 // Read-only export projection. Accounting/consumption always use existing data.js.
-import { cashflow, liquidIntake, transactionDate, isPaid } from './data.js';
+import { cashflow, liquidIntake, transactionDate, isPaid, isConsumedLiquid } from './data.js';
 const value = (n, unit='') => n == null ? '未知' : `${n}${unit}`;
 const range = r => `${r.startTime || r.time || '時間未知'}${r.endTime ? '～'+r.endTime : r.startTime ? '～結束未確認' : ''}${r.startTime && r.time && r.time!==r.startTime && r.time!==r.endTime ? '（紀錄時間 '+r.time+'）' : ''}`;
 const quantity = r => [['quantity','購買'],['consumedQuantity','本人攝取'],['familyQuantity','家人'],['remainingQuantity','剩餘']].filter(([k])=>r[k]!=null).map(([k,t])=>`${t}${r[k]}${r.unit || ''}`).join('；');
@@ -25,8 +25,8 @@ export function journalDocumentSections(data, date) {
   }
   for(const r of day.filter(r=>['activity','sunlight'].includes(r.type)))add('activity',r.id,`${range(r)} ${r.type==='activity'?'活動':'日照'}（${r.status}）\n${r.type==='activity'?`步數 ${value(r.steps)}；`:''}時間 ${value(r.minutes,' 分鐘')}${r.source?'；來源 '+r.source:''}${note(r)}`);
   if(!day.some(r=>['activity','sunlight'].includes(r.type)))add('activity','missing-activity','目前可見資料未找到活動或日照紀錄。');
-  add('food-drinks','liquid-summary',`已確認飲用總量：${value(liquids.value,' mL')}；${liquids.pending} 筆未完成／未確認，不計入完飲量；${liquids.unknown} 筆已飲用但容量未知，不推估。`);
-  for(const r of day.filter(r=>['coffee','water','beverage'].includes(r.type)))add('food-drinks',r.id,`${range(r)} ${r.name || (r.type==='coffee'?'咖啡':'飲水')}（${r.status}）\n${r.status==='已飲用'?'已飲用量':'記錄容量（非完飲量）'} ${value(r.volume,' mL')}${r.capacity!=null?`；裝水容量 ${r.capacity} mL`:''}${quantity(r)?'\n'+quantity(r):''}${r.type==='water'?'':'\n'+(r.payment==='voucher'?'兌換券，不重複計券面費用；記錄金額'+value(r.amount,' NT$'):money(r))}${note(r)}`);
+  add('food-drinks','liquid-summary',`已確認飲用總量：${value(liquids.value,' mL')}；${liquids.pending} 筆未完成／未確認，不計入完飲量；${liquids.unknown} 筆攝取量未知，不推估。${liquids.partial ? '含 '+liquids.partial+' 筆部分攝取。' : ''}`);
+  for(const r of day.filter(r=>['coffee','water','beverage'].includes(r.type)))add('food-drinks',r.id,`${range(r)} ${r.name || (r.type==='coffee'?'咖啡':'飲水')}（${r.status}）\n${r.status==='部分'?'部分攝取量':isConsumedLiquid(r)?'已飲用量':'記錄容量（非完飲量）'} ${value(r.volume,' mL')}${r.capacity!=null?`；裝水容量 ${r.capacity} mL`:''}${quantity(r)?'\n'+quantity(r):''}${r.type==='water'?'':'\n'+(r.payment==='voucher'?'兌換券，不重複計券面費用；記錄金額'+value(r.amount,' NT$'):money(r))}${note(r)}`);
   const meals=day.filter(r=>r.type==='meal');
   if(!meals.length)add('food-meals','missing-meals','目前可見資料未找到餐點紀錄。');
   for(const r of meals)add('food-meals',r.id,`${range(r)} ${r.name}（${r.status}）${quantity(r)?'\n'+quantity(r):''}\n${money(r)}${r.orderDate?'；訂購日期'+r.orderDate:''}${note(r)}`);

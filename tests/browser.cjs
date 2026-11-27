@@ -80,7 +80,7 @@ process.on("exit", () => server.kill());
     await page.locator("[name=volume]").fill("123");
     await page.locator("#edit-form .save").click();
     await page.locator("#editor").waitFor({state:"hidden"});
-    assert.equal(await page.locator(".coffee .metric").innerText(), "尚無資料");
+    assert.match(await page.locator(".coffee .metric").innerText(), /飲用中[\s\S]*實際攝取量待確認/);
     assert.equal(
       await page.locator(".spending .metric").innerText(),
       "尚無資料",
@@ -179,7 +179,7 @@ process.on("exit", () => server.kill());
     await fluidsPage.locator("#confirm").waitFor({state:"hidden"});
   assert.match(await fluidsPage.locator(".hydration .metric").innerText(), /1,880/);
   assert.match(await fluidsPage.locator(".beverage .metric").innerText(), /1,400/);
-  assert.equal(await fluidsPage.locator(".water .metric").innerText(), "尚無資料");
+  assert.match(await fluidsPage.locator(".water .metric").innerText(), /800 mL 飲用中[\s\S]*實際攝取量待確認/);
   await fluidsPage.locator(".water details").evaluate((e) => (e.open = true));
   await fluidsPage.locator(".water [data-edit]").click();
   await fluidsPage.locator("[name=status]").selectOption("已飲用");

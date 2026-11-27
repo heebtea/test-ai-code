@@ -1,12 +1,10 @@
-# Second Brain Lite｜AI 私人資料橋接
+# Second Brain Lite
 
-[快照、使用方式與驗收](docs/ai-private-data-bridge.md) · [統計 V2](docs/statistics-v2.md) · [圖表觸控](docs/chart-touch.md) · [私人同步原型](docs/v0.6-private-sync.md)
+[JSON 補正與當日管理](docs/record-maintenance/README.md) · [快照、使用方式與驗收](docs/ai-private-data-bridge.md) · [統計 V2](docs/statistics-v2.md) · [圖表觸控](docs/chart-touch.md) · [私人同步原型](docs/v0.6-private-sync.md)
 
 以下為本機功能與遷移說明。
 
-# Project Second Brain Lite v0.5
-
-繁體中文生活紀錄工具。首次啟動為空白，**僅本機保存、尚未跨裝置同步**。資料保存在 localStorage 與 IndexedDB，圖片辨識也在瀏覽器本機完成。沒有帳號、後端、分析服務或外部資料上傳。不要把個人備份提交公開 GitHub。
+繁體中文生活紀錄工具。首次啟動為空白，預設在本機保存。紀錄保存在 localStorage，照片與模板保存在 IndexedDB，OCR 也在瀏覽器內運行。私人同步須自行配置、登入並授權。請私下保存含個人資料的備份。
 
 v0.5 最初由 main `f850d27` 開發。舊 OCR 的移除與未合併修復原因見 [調查與交付](docs/v0.5-investigation.md)，測試範圍見 [VERIFICATION.md](VERIFICATION.md)。
 
@@ -24,7 +22,7 @@ npm run test:browser
 
 瀏覽器測試使用隔離環境及合成資料，需要 Playwright Chromium，或透過 `CHROME_PATH` 指定可執行檔。CI 已有 Chromium 安裝步驟。`SCREENSHOT_DIR` 可指定截圖位置，預設 `test-results/`。真實 OCR 測試使用 repo 內固定的合成 PNG，再轉 JPEG／WebP，不依賴主機中文字型。
 
-`npm run test:webkit` 提供 WebKit 的完整備份、編輯與 PNG 測試入口，需要另外安裝 WebKit 與其系統依賴。WebKit 模擬不等於實體 iPhone Safari 驗收；本次環境未能啟動 WebKit，詳見驗證紀錄。
+`npm run test:webkit` 提供 WebKit 的完整備份、編輯與 PNG 測試入口，需要另外安裝 WebKit 與其系統依賴。新增紀錄維護流程可用 `BROWSER_ENGINE=webkit node tests/record-maintenance-browser.cjs` 驗證。實體 iPhone Safari 是獨立的驗收項目。
 
 ## 本機 OCR 批次審核
 
@@ -50,7 +48,13 @@ npm run test:browser
 
 寫入前會保存本機回復快照，所有 v0.5 寫入配合 Web Locks；預覽後資料改變會拒絕還原。中途失敗回復原有內容；頁面中斷後啟動時檢查持久化回復日誌，未回復完成時停用寫入。**請先關閉其他舊版分頁**，舊版程式不會遵守新鎖。回復快照也占儲存空間；空間不足時可能拒絕操作，請勿清除瀏覽器資料。
 
-原有「匯出紀錄 JSON／匯入 JSON 備份」仍保留作相容入口，不含照片與模板，匯入同 ID 時只保留本機。要逐項處理衝突或搬移所有內容，使用完整備份入口。
+「匯出紀錄 JSON」只包含紀錄。「匯入 JSON／補正」接受 v2–v8，預覽新增、更新、完全相同、衝突、略過與驗證失敗件數。相同 ID 可保留現有、採用匯入補正，或逐筆比較。不同類別的相同 ID 會略過；舊檔省略的選填欄位保留現有值。取消或儲存失敗，原紀錄會保留。
+
+## 刪除與復原選定日期
+
+在每日總覽選日期，展開「當日紀錄管理」，選「刪除當日全部紀錄」。核對日期與各類別筆數，建立備份，下載後再確認刪除。系統會依紀錄日期移除該日資料，並重算畫面上的統計及小誌；其他日期的紀錄、設定、模板和照片資源會保留。
+
+使用同區的「復原上次當日刪除」，可復原原 ID 並保留其後已有的同 ID 紀錄。下載檔可由「還原完整／舊版備份」復原；也可從同一入口明確匯入重建該日用的紀錄 JSON。一般補正匯入會略過已知已刪除的 ID。私人同步啟用時會送出刪除標記；若其他裝置已修改該筆，請在同步衝突清單核對。
 
 ## 版本相容與紀錄原則
 
@@ -65,8 +69,8 @@ npm run test:browser
 
 保留日期切換、快速新增、詳情編輯／刪除確認、深淺模式。手機輸入欄位最低 16px；OCR 批次工具可在長列表中使用。
 
-新模板預設三欄，既有單欄／雙欄設定保留。小誌把飲食、飲品、花費分開，花費逐筆呈現，Canvas 依字寬換行，使用系統繁體中文字型。輸出尺寸固定 1080×1920。**單頁放不下完整內容時會明確提示並停用 PNG 下載**，不把省略明細的圖卡當完整日報交付；可改其他欄數或保留完整備份。多頁 PNG 待後續開發。照片尚未嵌入小誌 PNG，但完整備份會保存照片。
+新模板預設三欄，既有單欄／雙欄設定保留。小誌把飲食、飲品、花費分開，花費逐筆呈現，Canvas 依字寬換行，使用系統繁體中文字型。輸出尺寸固定 1080×1920。單頁放不下時會自動續欄及分頁，每頁可獨立下載 PNG，也可展開閱讀文字。照片尚未嵌入小誌 PNG，但完整備份會保存照片。
 
 ## 尚未提供
 
-通用跨類別彙總、正式雲端接線、照片跨裝置即時同步及多頁 PNG。安全架構比較見 [後續設計](docs/v0.5-investigation.md#雲端同步設計比較尚未實作)。未建立任何外部服務，也未改動正式環境設定。
+照片與模板的即時跨裝置同步尚未提供。可透過完整備份搬移，或查閱 [私人同步的範圍與限制](docs/v0.6-private-sync.md)。

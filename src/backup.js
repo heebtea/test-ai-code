@@ -1,4 +1,4 @@
-import { RECORD_VERSIONS, empty, validate, validateRecord, STORAGE_KEY, THEME_KEY } from './data.js';
+import { RECORD_VERSIONS, empty, validate, validateRecord, loadRecords, validDate, STORAGE_KEY, THEME_KEY } from './data.js';
 import { validateTemplate } from './templates.js';
 import { assertWritable, storageLock, RESTORE_KEY } from './storage-guard.js';
 
@@ -99,13 +99,56 @@ async function view(storage) {
 export async function exportComplete(storage = localStorage) {
   return storageLock(async () => {
     assertWritable(storage);
-    const { value } = await view(storage);
+    const snap = await snapshot(storage);
+    const ids = new Set(loadRecords(storage).records.map(({ id }) => id));
+    const value = await envelope({ ...snap, photos: snap.photos.filter(([id]) => ids.has(id)) });
     const result = JSON.stringify({ ...value, createdAt: new Date().toISOString() });
     if (new Blob([result]).size > MAX_BACKUP_BYTES) throw Error('完整備份超過 100 MB；請另存照片原檔後再處理，未產生不完整備份');
     return result;
   });
 }
-export function parseComplete(text) {
+export async function prepareDayBackup(date, expected, storage) {
+  if (!validDate(date)) throw Error('備份日期無效');
+  return storageLock(async () => {
+    assertWritable(storage);
+    const snapshot = storage.getItem(STORAGE_KEY);
+    const current = loadRecords(storage);
+    if (canonical(current) !== canonical(expected)) throw Error('紀錄已更新，請重新開啟刪除預覽');
+    const records = { version: current.version, records: current.records.filter(record => record.date === date) };
+    if (!records.records.length) throw Error('此日期沒有可刪除的紀錄');
+    const blobs = await transaction('photos', 'readonly', (store, done) => {
+      const entries = [];
+      for (const { id } of records.records) {
+        const request = store.get(id);
+        request.onsuccess = () => {
+          if (request.result) entries.push([id, request.result]);
+        };
+      }
+      done(entries);
+    });
+    const photos = [];
+    for (const [id, blob] of blobs) photos.push({ id, ...await encodeBlob(blob) });
+    const text = JSON.stringify({
+      format: FORMAT, backupVersion: 1, appVersion: '0.6.0',
+      createdAt: new Date().toISOString(), day: date, records, photos, templates: [], settings: {},
+    });
+    if (new Blob([text]).size > MAX_BACKUP_BYTES) throw Error('當日備份超過 100 MB，尚未刪除');
+    return { date, snapshot, records, text };
+  });
+}
+
+export function getDayRecovery(key) {
+  return transaction('recovery', 'readonly', (store, done) => {
+    const request = store.get(key);
+    request.onsuccess = () => done(request.result);
+  });
+}
+
+export function putDayRecovery(key, records) {
+  return writeStore('recovery', [[key, records]]);
+}
+
+export function parseComplete(text, { rejectDuplicateRecords = false } = {}) {
   if (typeof text !== 'string' || text.length > MAX_BACKUP_BYTES) throw Error('備份超過 100 MB');
   let raw;
   try { raw = JSON.parse(text); } catch { throw Error('JSON 無法解析，原有資料未修改'); }
@@ -114,11 +157,22 @@ export function parseComplete(text) {
   const source = legacy ? raw : raw.records;
   if (!source || !RECORD_VERSIONS.includes(source.version) || !Array.isArray(source.records) || source.records.length > 10000) throw Error('不支援的紀錄版本或紀錄數量');
   if (Object.keys(source).some(k=>!['version','records'].includes(k))) throw Error('紀錄容器含不支援欄位，請確認備份版本');
-  const incoming = { legacy, version: source.version, entries: [], errors: [] };
+  const day = legacy || raw.day === undefined ? null : raw.day;
+  if (day !== null && (!validDate(day) || source.records.some(record => record?.date !== day) ||
+    raw.templates?.length || Object.keys(raw.settings || {}).length))
+    throw Error('當日備份須只包含該日期的紀錄和對應照片');
+  const incoming = { legacy, day, version: source.version, entries: [], errors: [] };
   const seen = new Set();
+  const hasRecordId = new Set();
+  const duplicateRecordIds = new Set();
+  for (const record of rejectDuplicateRecords ? source.records : []) {
+    if (hasRecordId.has(record?.id)) duplicateRecordIds.add(record?.id);
+    hasRecordId.add(record?.id);
+  }
   const add = (kind, id, value, validateValue) => {
     const key = kind + ':' + id;
     try {
+      if (duplicateRecordIds.has(id) && ['record','photo'].includes(kind)) throw Error('備份內紀錄 ID 重複');
       if (!validId(id) || seen.has(key)) throw Error('ID 無效或備份內重複 ID');
       seen.add(key); validateValue(value);
       incoming.entries.push({ kind, id, key, value });
@@ -127,7 +181,11 @@ export function parseComplete(text) {
   for (const r of source.records) add('record', r?.id, r, r => validate({ version: source.version, records: [r] }));
   if (!legacy) {
     if (!Array.isArray(raw.photos) || !Array.isArray(raw.templates) || raw.photos.length > 10000 || raw.templates.length > 1000 || !raw.settings || typeof raw.settings !== 'object' || Array.isArray(raw.settings)) throw Error('照片、模板或設定容器無效');
-    for (const p of raw.photos) add('photo', p?.id, p, p => decodeBlob(p));
+    const scopedIds = day && new Set(incoming.entries.map(({ id }) => id));
+    for (const p of raw.photos) add('photo', p?.id, p, p => {
+      if (scopedIds && !scopedIds.has(p.id)) throw Error('照片不屬於當日備份紀錄');
+      decodeBlob(p);
+    });
     for (const t of raw.templates) add('template', t?.id, t, t => {
       if (t.id === 'default') throw Error('內建模板不可覆寫');
       const allowed = ['id','name','background','accent','font','columns','illustration','mapping','image'];
@@ -157,13 +215,16 @@ export function planComplete(current, incoming) {
   const errors = [...incoming.errors];
   const recordIds = new Set([...maps.record.keys(), ...rows.filter(r => r.kind === 'record').map(r => r.id)]);
   const templateIds = new Set(['default', ...maps.template.keys(), ...rows.filter(r => r.kind === 'template').map(r => r.id)]);
+  const mismatchedIds = new Set(rows.filter(row => row.kind === 'record' && row.old && row.old.type !== row.value.type).map(row => row.id));
   const validRows = rows.filter(row => {
-    const bad = row.kind === 'photo' && !recordIds.has(row.id) ? '照片對應紀錄不存在'
+    const bad = row.kind === 'record' && mismatchedIds.has(row.id) ? '同一 ID 類別衝突'
+      : row.kind === 'photo' && mismatchedIds.has(row.id) ? '照片對應紀錄的類別衝突'
+      : row.kind === 'photo' && !recordIds.has(row.id) ? '照片對應紀錄不存在'
       : row.kind === 'setting' && row.id === 'template' && row.value && !templateIds.has(row.value) ? '選取的模板不存在' : '';
     if (bad) errors.push({ kind: row.kind, id: row.id, reason: bad });
     return !bad;
   });
-  return { rows: validRows, errors, legacy: incoming.legacy,
+  return { rows: validRows, errors, legacy: incoming.legacy, day: incoming.day,
     counts: Object.fromEntries(['new','same','conflict'].map(k => [k, validRows.filter(r => r.status === k).length])) };
 }
 export async function previewComplete(text, storage = localStorage) {
@@ -257,6 +318,7 @@ export async function applyComplete(preview, choices = {}, storage = localStorag
     // Cleanup failures leave the committed journal for startup recovery, not a false rollback.
     try { await writeStore('recovery', [['pending', undefined]]); storage.removeItem(RESTORE_KEY); }
     catch { throw Error('還原已完成，但回復記錄清理失敗；請重新整理後繼續'); }
-    return { applied: changes.length, skipped: plan.rows.length - changes.length, errors: plan.errors };
+    return { applied: changes.length, skipped: plan.rows.length - changes.length, errors: plan.errors,
+      ...(plan.day && changes.some(r => r.kind === 'record') ? { recordsRestoredFromDay: true } : {}) };
   });
 }
