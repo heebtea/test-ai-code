@@ -21,24 +21,46 @@ export function validateRemote(rows) {
 }
 const syncedVersion = (version, records) => Math.max(version, 7, ...records.map(statVersion));
 const value = row => row?.deleted ? null : row?.record ?? null;
+export function isDeletedLocally(state, id) {
+  return Object.hasOwn(state.dayDeletions || {}, id) ||
+    (Object.hasOwn(state.bases || {}, id) && state.bases[id].deleted);
+}
+
 export function planSync(data, state, remote) {
   validate(data); validateRemote(remote);
   const local = new Map(data.records.map(r=>[r.id,r])), cloud = new Map(remote.map(r=>[r.id,r]));
   const bases = state.bases || {};
-  const ids = new Set([...local.keys(), ...cloud.keys(), ...Object.keys(bases), ...Object.keys(state.pending || {})]);
+  const ids = new Set([...local.keys(), ...cloud.keys(), ...Object.keys(bases), ...Object.keys(state.pending || {}), ...Object.keys(state.dayDeletions || {})]);
   const writes=[], pulls=[], conflicts=[], acknowledged=[];
   for(const id of ids) {
     const l=local.get(id) ?? null, r=cloud.get(id);
     let b=Object.hasOwn(bases,id)?bases[id]:null;
+    const deletion = Object.hasOwn(state.dayDeletions || {}, id) ? state.dayDeletions[id] : null;
     const pending=state.pending && Object.hasOwn(state.pending,id) ? state.pending[id] : null;
     // A request can commit remotely before the response is lost. Preserve its ancestry.
     if(!b && pending && r) {
       if(equal(pending.record,value(r))) b=r;
-      else if(!equal(l,value(r))) { conflicts.push({id,local:l,remote:r}); continue; }
+      else if(!equal(l,value(r))) {
+        conflicts.push({id,local:l,remote:r,...(deletion && !l ? { dayDeletion: true } : {})});
+        continue;
+      }
     }
     if(b && !r) throw Error('雲端遺失版本歷史；停止同步，請檢查專案與備份');
     if(b && r && (r.revision < b.revision || (r.revision === b.revision && !equal(value(r),value(b))))) throw Error('雲端版本倒退或同版本內容變動；停止同步');
     if(r && equal(l,value(r))) { acknowledged.push(r); continue; }
+    if (deletion && !l) {
+      // Keep a local intent if this ID has never reached the server. An older
+      // device may upload it later. A moved or retyped row needs manual review.
+      if (r && (r.record.date !== deletion.date || r.record.type !== deletion.type ||
+        (b && r.revision !== b.revision))) conflicts.push({id, local: null, remote: r, dayDeletion: true});
+      else if (r) writes.push({id, expected: r.revision, record: null, deleted: true});
+      continue;
+    }
+    if (deletion && l && r?.deleted && !b) {
+      // An explicit local recovery may precede the first successful sync.
+      writes.push({id, expected: r.revision, record: l, deleted: false});
+      continue;
+    }
     if(!b) {
       if(!r && l) writes.push({id,expected:0,record:l,deleted:false});
       else if(r && !l) { pulls.push(r); acknowledged.push(r); }
@@ -70,7 +92,7 @@ export function recoverSync(storage) {
   if(j.stateBefore===null) storage.removeItem(SYNC_KEY); else storage.setItem(SYNC_KEY,j.stateBefore);
   storage.removeItem(SYNC_JOURNAL);
 }
-function commitLocal(storage, expected, data, state) {
+export function commitLocal(storage, expected, data, state) {
   assertWritable(storage);
   if(storage.getItem(STORAGE_KEY)!==expected) throw Error('同步期間本機有新修改，請重試；新資料已保留');
   const after=JSON.stringify(validate(data)), stateBefore=storage.getItem(SYNC_KEY);
@@ -118,9 +140,17 @@ async function performSync({storage,adapter,lock=storageLock,active=()=>true,now
   const bases={...state.bases};
   for(const row of plan.acknowledged) Object.defineProperty(bases,row.id,{value:clone(row),enumerable:true,configurable:true,writable:true});
   const pending={...state.pending}; for(const row of plan.acknowledged) delete pending[row.id];
-  const next={...state,bases,pending,conflicts:plan.conflicts,lastSync:plan.conflicts.length ? state.lastSync : now(),lastAttempt:now()};
+  const dayDeletions = {...state.dayDeletions};
+  for (const row of plan.acknowledged) delete dayDeletions[row.id];
+  const next={...state,bases,pending,dayDeletions,conflicts:plan.conflicts,lastSync:plan.conflicts.length ? state.lastSync : now(),lastAttempt:now()};
   const mergedRecords = [...records.values()];
-  await lock(()=>{check();commitLocal(storage,raw,{version:syncedVersion(data.version,mergedRecords),records:mergedRecords},next);});
+  await lock(()=>{
+    check();
+    // A day backup can be dismissed after its rows were already restored.
+    // Preserve that local pointer even when the record bytes did not change.
+    const { dayBackups } = readSyncState(storage);
+    commitLocal(storage,raw,{version:syncedVersion(data.version,mergedRecords),records:mergedRecords},{ ...next, dayBackups });
+  });
   return next;
 }
 async function performResolve({storage,adapter,id,choice,lock=storageLock,active=()=>true}) {
@@ -134,6 +164,11 @@ async function performResolve({storage,adapter,id,choice,lock=storageLock,active
   });
   const current=(await adapter.list()).find(r=>r.id===id);
   if(!current || current.revision!==conflict.remote.revision) throw Error('雲端版本已變，請重新同步');
+  if (conflict.dayDeletion && choice === 'local') {
+    const intent = state.dayDeletions[id];
+    if (!intent || current.record?.date !== intent.date || current.record?.type !== intent.type)
+      throw Error('雲端紀錄已移到其他日期或類別，只能保留該筆雲端紀錄');
+  }
   let row=current;
   if(choice==='local') row=await adapter.cas({id,expected:current.revision,record:conflict.local,deleted:conflict.local===null});
   validateRemote([row]);
@@ -142,6 +177,7 @@ async function performResolve({storage,adapter,id,choice,lock=storageLock,active
   Object.defineProperty(state.bases,id,{value:row,enumerable:true,configurable:true,writable:true});
   state.conflicts=state.conflicts.filter(c=>c.id!==id);
   if(state.pending) delete state.pending[id];
+  if(state.dayDeletions) delete state.dayDeletions[id];
   await lock(()=>{if(!active()) throw Error('同步已停止');commitLocal(storage,raw,{version:syncedVersion(data.version,records),records},state);});
   return state;
 }

@@ -1,11 +1,12 @@
-import { recoverSync } from "./private-sync.js";
+import { readSyncState, recoverSync } from "./private-sync.js";
 import { createSyncUI } from "./private-sync-ui.js";
 import "./style.css";
 import { addStatFields, normalizeStatFields } from "./stat-fields.js";
 import { openSleepDetail } from "./sleep-detail.js";
 import { openMetricDetail, metricTypes, metricDay } from "./metric-detail.js";
-import { exportComplete, previewComplete, applyComplete, recoverComplete, MAX_BACKUP_BYTES } from "./backup.js";
+import { exportComplete, previewComplete, applyComplete, recoverComplete, prepareDayBackup, MAX_BACKUP_BYTES } from "./backup.js";
 import { guardedWrite, RESTORE_KEY } from "./storage-guard.js";
+import { deleteDayRecords, hasDayRecovery, mergeWithoutDeletedRecords, restoreDayRecords } from "./day-records.js";
 import { openAiShare } from "./ai-share.js";
 import { recognizeCard } from "./ocr.js";
 import { planReviewBatch } from "./ocr-review.js";
@@ -42,7 +43,6 @@ import {
   cashflow,
   liquidIntake,
   parseBackup,
-  merge,
 } from "./data.js";
 const app = document.querySelector("#app");
 const names = {
@@ -56,6 +56,7 @@ const names = {
   sunlight: "日照",
   event: "重要事件",
   journal: "小誌文字",
+  draft: "待確認草稿",
 };
 const labels = {
   minutes: "時間（分鐘）",
@@ -153,8 +154,9 @@ function save(next) {
   const current = loadRecords(storage);
   if (JSON.stringify(current) !== JSON.stringify(data))
     throw Error("另一分頁已更新資料，請重新整理後再操作");
-  persist(storage, next);
-  data = next;
+  const updated = typeof next === "function" ? next(current) : next;
+  persist(storage, updated);
+  data = updated;
   syncUI.changed();
   });
 }
@@ -163,7 +165,9 @@ function render() {
   document.documentElement.dataset.theme = theme;
   const liquids = liquidIntake(data, date);
   const flow = cashflow(data, date);
-  app.innerHTML = `<div class="shell"><header class="topbar"><div class="brand">✳ SECOND BRAIN LITE v0.6</div><button id="theme" class="theme-toggle">${theme === "dark" ? "淺色" : "深色"}模式</button></header><main><div class="intro"><div><h1>Project Second Brain</h1><p>生活小誌 · 留下今天的一點線索。</p></div></div><div class="notice"><span id="sync-state">本機模式 · 尚未連接雲端</span>。完整備份包含生活紀錄、照片、模板及設定；請自行轉移備份檔，勿上傳公開 GitHub。</div><p id="message" role="status">${esc(message)}</p><div class="toolbar"><button type="button" id="ai-share" ${blocked ? "disabled" : ""}>分享資料給 AI</button><button id="private-sync" ${blocked ? "disabled" : ""}>私人同步設定</button><button id="complete-export">匯出完整備份（含照片／模板）</button><label class="file-button">還原完整／舊版備份<input id="complete-import" type="file" accept="application/json,.json" ${blocked ? "disabled" : ""}></label><button id="export">匯出紀錄 JSON（不含照片）</button><label class="file-button">匯入 JSON 備份<input id="import" type="file" accept="application/json,.json" ${blocked ? "disabled" : ""}></label>${blocked ? '<button id="raw">匯出原始儲存內容</button>' : ""}</div><div class="section-heading"><h2>每日總覽</h2><div class="date-nav"><button id="prev" aria-label="前一天">‹</button><input id="date" type="date" min="1900-01-01" max="2199-12-31" value="${date}" aria-label="選擇日期"><button id="next" aria-label="後一天">›</button></div></div><div class="dashboard"><section class="card hydration"><div class="card-head"><h2>今日已飲用總量</h2></div><button class="card-toggle" aria-expanded="false"><span class="metric">${fmt(liquids.value, "mL 已飲用")}${liquids.unknown ? `（${liquids.unknown} 筆容量未知）` : ""}</span><span class="card-cue">查看白開水、咖啡及其他飲品明細 ↗</span></button><details class="record-details"><summary>分類明細</summary><p>白開水：${fmt(liquids.breakdown.water.value, "mL")} · 咖啡：${fmt(liquids.breakdown.coffee.value, "mL")} · 其他飲品：${fmt(liquids.breakdown.beverage.value, "mL")}</p><p>${liquids.pending} 筆飲用中／未確認，未計入總量；已飲用但容量未知者也不推算。每筆紀錄只計一次。</p></details></section>${types
+  app.innerHTML = `<div class="shell"><header class="topbar"><div class="brand">✳ SECOND BRAIN LITE v0.6</div><button id="theme" class="theme-toggle">${theme === "dark" ? "淺色" : "深色"}模式</button></header><main><div class="intro"><div><h1>Project Second Brain</h1><p>生活小誌 · 留下今天的一點線索。</p></div></div><div class="notice"><span id="sync-state">本機模式 · 尚未連接雲端</span>。完整備份包含生活紀錄、照片、模板及設定；請自行轉移備份檔，勿上傳公開 GitHub。</div><p id="message" role="status">${esc(message)}</p><div class="toolbar"><button type="button" id="ai-share" ${blocked ? "disabled" : ""}>分享資料給 AI</button><button id="private-sync" ${blocked ? "disabled" : ""}>私人同步設定</button><button id="complete-export">匯出完整備份（含照片／模板）</button><label class="file-button">還原完整／舊版備份<input id="complete-import" type="file" accept="application/json,.json" ${blocked ? "disabled" : ""}></label><button id="export">匯出紀錄 JSON（不含照片）</button><label class="file-button">匯入 JSON 備份<input id="import" type="file" accept="application/json,.json" ${blocked ? "disabled" : ""}></label>${blocked ? '<button id="raw">匯出原始儲存內容</button>' : ""}</div><div class="section-heading"><h2>每日總覽</h2><div class="date-nav"><button id="prev" aria-label="前一天">‹</button><input id="date" type="date" min="1900-01-01" max="2199-12-31" value="${date}" aria-label="選擇日期"><button id="next" aria-label="後一天">›</button></div></div><details class="day-management"><summary>當日紀錄管理</summary><p>選定日期 ${date}。依紀錄日期處理，其他日期的紀錄會保留。</p>
+  <div class="dialog-actions"><button id="day-delete" type="button" ${blocked || !data.records.some((record) => record.date === date) ? "disabled" : ""}>刪除當日全部紀錄</button>
+  <button id="day-restore" type="button" hidden>復原上次當日刪除</button></div></details><div class="dashboard"><section class="card hydration"><div class="card-head"><h2>今日已飲用總量</h2></div><button class="card-toggle" aria-expanded="false"><span class="metric">${fmt(liquids.value, "mL 已飲用")}${liquids.unknown ? `（${liquids.unknown} 筆容量未知）` : ""}</span><span class="card-cue">查看白開水、咖啡及其他飲品明細 ↗</span></button><details class="record-details"><summary>分類明細</summary><p>白開水：${fmt(liquids.breakdown.water.value, "mL")} · 咖啡：${fmt(liquids.breakdown.coffee.value, "mL")} · 其他飲品：${fmt(liquids.breakdown.beverage.value, "mL")}</p><p>${liquids.pending} 筆飲用中／未確認，未計入總量；已飲用但容量未知者也不推算。每筆紀錄只計一次。</p></details></section>${types
     .filter((type) => type !== "event" && type !== "journal")
     .map((type) => {
       const rs = type === "spending" ? metricDay(data,date,type).items : rows(data, date, type);
@@ -196,7 +200,8 @@ function render() {
           `<li><button class="timeline-event" data-event="${entry.record.id}"><time>${esc(entry.time)}</time><span><b>${esc(entry.label)}</b><small>${esc(entry.record.name || entry.record.status)}</small></span><img data-photo="${entry.record.id}" alt="事件照片" hidden></button></li>`,
       )
       .join("") || "<li>尚無有時間的紀錄</li>"
-  }</ul><button data-add="event" ${blocked ? "disabled" : ""}>＋ 新增重要事件</button></details>${templateView()}<section class="journal-banner"><div><small>THE DAILY EDIT</small><h2>把今天，收進小誌裡。</h2><p>用已記錄的片段，留下一張屬於今天的直式小誌。</p></div><button id="journal">產生今日小誌</button></section><p class="footer">睡眠以起床日期記錄；活動請記錄不重疊的區段。空白數值代表未知，只有明確輸入 0 才是零。</p></main></div><dialog id="editor" aria-labelledby="dialog-title"></dialog><dialog id="confirm" aria-labelledby="confirm-title"></dialog><dialog id="event-detail"></dialog><dialog id="journal-dialog"></dialog><dialog id="template-editor"></dialog><dialog id="ocr-dialog" aria-labelledby="ocr-title"></dialog><dialog id="backup-dialog" aria-label="完整備份還原審核"></dialog><dialog id="sleep-dialog" aria-label="睡眠詳情"></dialog><dialog id="metric-dialog" aria-label="日週月統計詳情"></dialog>`;
+  }</ul><button data-add="event" ${blocked ? "disabled" : ""}>＋ 新增重要事件</button></details>
+  ${templateView()}<section class="journal-banner"><div><small>THE DAILY EDIT</small><h2>把今天，收進小誌裡。</h2><p>用已記錄的片段，留下一張屬於今天的直式小誌。</p></div><button id="journal">產生今日小誌</button></section><p class="footer">睡眠以起床日期記錄；活動請記錄不重疊的區段。空白數值代表未知，只有明確輸入 0 才是零。</p></main></div><dialog id="day-dialog" aria-labelledby="day-dialog-title"></dialog><dialog id="editor" aria-labelledby="dialog-title"></dialog><dialog id="confirm" aria-labelledby="confirm-title"></dialog><dialog id="event-detail"></dialog><dialog id="journal-dialog"></dialog><dialog id="template-editor"></dialog><dialog id="ocr-dialog" aria-labelledby="ocr-title"></dialog><dialog id="backup-dialog" aria-label="完整備份還原審核"></dialog><dialog id="sleep-dialog" aria-label="睡眠詳情"></dialog><dialog id="metric-dialog" aria-label="日週月統計詳情"></dialog>`;
   applyTemplateStyles(
     document.querySelector(".template-sheet"),
     selectedTemplate,
@@ -326,6 +331,20 @@ function render() {
             });
         })),
   );
+  document.querySelector("#day-delete").onclick = () => showDayDelete(date, data);
+  const restoreDay = document.querySelector("#day-restore");
+  try { restoreDay.hidden = blocked || !hasDayRecovery(date, storage); } catch {}
+  restoreDay.onclick = () => {
+    const selected = date;
+    confirmAction(`復原 ${selected} 上次刪除的紀錄？相同 ID 的現有版本會保留。`, async () => {
+      const result = await restoreDayRecords(selected, storage);
+      data = loadRecords(storage);
+      message = `${selected} 已復原 ${result.restored} 筆，保留 ${result.kept} 筆現有版本。`;
+      render();
+      document.querySelector(".day-management").open = true;
+      syncUI.changed();
+    });
+  };
   document.querySelector("#complete-export").onclick = async () => {
     try { download(await exportComplete(storage), `second-brain-complete-${localDate()}.json`); }
     catch (err) { message = "完整備份未匯出：" + err.message; render(); }
@@ -364,13 +383,16 @@ function render() {
     try {
       if (file.size > 10000000) throw Error("檔案過大");
       const incoming = parseBackup(await file.text());
-      const preview = merge(data, incoming);
+      const preview = mergeWithoutDeletedRecords(data, incoming, readSyncState(storage));
       confirmAction(
-        `匯入 ${incoming.records.length} 筆：新增 ${preview.added} 筆、衝突 ${preview.conflicts} 筆（保留本機版本）。相同 ID 不重複加入；不刪除或覆寫任何現有紀錄。建議先匯出備份。`,
+        `匯入 ${incoming.records.length} 筆：新增 ${preview.added} 筆、衝突 ${preview.conflicts} 筆（保留本機版本）、略過 ${preview.skipped} 筆已刪除的紀錄。相同 ID 不重複加入；不刪除或覆寫任何現有紀錄。建議先匯出備份。`,
         async () => {
-          const result = merge(data, incoming);
-          await save(result.data);
-          message = `已新增 ${result.added} 筆，保留 ${result.conflicts} 筆本機衝突版本。`;
+          let result;
+          await save((current) => {
+            result = mergeWithoutDeletedRecords(current, incoming, readSyncState(storage));
+            return result.data;
+          });
+          message = `已新增 ${result.added} 筆，保留 ${result.conflicts} 筆本機衝突版本。${result.skipped ? `略過 ${result.skipped} 筆已刪除的紀錄。` : ""}`;
           render();
         },
       );
@@ -391,6 +413,54 @@ function download(text, name) {
   a.download = name;
   a.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+function showDayDelete(selected, snapshot) {
+  const dialog = document.querySelector("#day-dialog");
+  const records = snapshot.records.filter((record) => record.date === selected);
+  const counts = new Map();
+  for (const { type } of records) counts.set(type, (counts.get(type) || 0) + 1);
+  let backup;
+  dialog.innerHTML = `<h2 id="day-dialog-title">刪除當日全部紀錄</h2>
+    <p><strong>${selected}</strong> 共 <strong>${records.length} 筆</strong>。只處理這一天的紀錄，包含這天的小誌文字。</p>
+    <ul class="day-category-counts">${[...types, "draft"].map((type) => `<li>${names[type]} ${counts.get(type) ?? 0} 筆</li>`).join("")}</ul>
+    <p>依紀錄日期刪除。其他日期的原始紀錄、個人設定、模板和照片資源會保留。啟用私人同步時，刪除也會同步。</p>
+    <p id="day-delete-step" role="status"></p><p class="error" role="alert"></p>
+    <div class="dialog-actions"><button type="button" data-day-cancel>取消</button>
+    <button type="button" data-day-download hidden>下載當日備份</button>
+    <button type="button" data-day-next>繼續並建立備份</button></div>`;
+  const proceed = dialog.querySelector("[data-day-next]");
+  const cancel = dialog.querySelector("[data-day-cancel]");
+  const downloadButton = dialog.querySelector("[data-day-download]");
+  cancel.onclick = () => dialog.close();
+  downloadButton.onclick = () => download(backup.text, `second-brain-day-${selected}.json`);
+  proceed.onclick = async () => {
+    proceed.disabled = cancel.disabled = true;
+    const preventCancel = (event) => event.preventDefault();
+    dialog.addEventListener("cancel", preventCancel);
+    try {
+      if (!backup) {
+        backup = await prepareDayBackup(selected, snapshot, storage);
+        proceed.textContent = `確認刪除 ${selected}`;
+        downloadButton.hidden = false;
+        dialog.querySelector("#day-delete-step").textContent = "已建立當日備份，可先下載。確認後也可從當日管理復原。";
+        downloadButton.focus();
+        return;
+      }
+      const deleted = await deleteDayRecords(backup, storage);
+      data = loadRecords(storage);
+      message = `${selected} 已刪除 ${deleted} 筆紀錄，可在當日紀錄管理復原。`;
+      dialog.close();
+      render();
+      document.querySelector(".day-management").open = true;
+      syncUI.changed();
+    } catch (error) {
+      dialog.querySelector(".error").textContent = "刪除未完成：" + error.message;
+    } finally {
+      proceed.disabled = cancel.disabled = false;
+      dialog.removeEventListener("cancel", preventCancel);
+    }
+  };
+  dialog.showModal();
 }
 function confirmAction(text, action) {
   const d = document.querySelector("#confirm");
@@ -1269,8 +1339,9 @@ function showBackup(preview) {
       data = loadRecords(storage); templates = await listTemplates();
       theme = storage.getItem(THEME_KEY) === 'dark' ? 'dark' : 'light';
       selectedTemplate = templates.find(t=>t.id === storage.getItem('second-brain-template')) || baseTemplate();
-      message = `完整還原完成：寫入 ${result.applied} 項，保留／跳過 ${result.skipped} 項，無法解析 ${result.errors.length} 項。尚未跨裝置自動同步。`;
+      message = `完整還原完成：寫入 ${result.applied} 項，保留／跳過 ${result.skipped} 項，無法解析 ${result.errors.length} 項。${result.recordsRestoredFromDay ? "私人同步啟用時將排入同步。" : "尚未跨裝置自動同步。"}`;
       d.close(); render();
+      if (result.recordsRestoredFromDay) syncUI.changed();
     } catch (err) {
       d.querySelector('.error').textContent = err.message;
       if (storage.getItem(RESTORE_KEY)) blocked = true;
