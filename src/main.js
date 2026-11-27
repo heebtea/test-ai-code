@@ -1252,9 +1252,26 @@ function edit(type, record) {
     )}${type === "meal" ? "" : `<label>時間<input type="time" name="time" value="${r.time}"></label>`}<label>狀態<select name="status">${statuses[type].map((s) => `<option ${r.status === s ? "selected" : ""}>${s}</option>`).join("")}</select></label>${type === "coffee" ? `<label>付款方式<select name="payment"><option value="purchase" ${r.payment === "purchase" ? "selected" : ""}>購買</option><option value="voucher" ${r.payment === "voucher" ? "selected" : ""}>兌換券（不重複記帳）</option></select></label>` : ""}<label>紀錄來源<input name="provenance" maxlength="500" value="${esc(r.provenance ?? (record ? "" : "手動輸入"))}"></label><label>說明<input name="note" maxlength="500" value="${esc(r.note)}"></label></div><p class="error" role="alert"></p><div class="dialog-actions"><button type="button" id="cancel">取消</button><button class="save">儲存</button></div></form>`;
   addStatFields(d.querySelector("#form-fields"), r);
   d.querySelector("#cancel").onclick = () => d.close();
-  if (type === 'coffee') d.querySelector('[name=payment]').onchange = e => {
-    if (e.target.value === 'voucher' && d.querySelector('[name=volume]').value === '') d.querySelector('[name=volume]').value = '480';
-  };
+  if (liquidTypes.includes(type)) {
+    const volume = d.querySelector('[name=volume]');
+    const status = d.querySelector('[name=status]');
+    const payment = d.querySelector('[name=payment]');
+    let enteredVolume = false;
+    let voucherDefault = false;
+    volume.oninput = () => { enteredVolume = true; voucherDefault = false; };
+    if (payment) payment.onchange = () => {
+      if (payment.value === 'voucher' && status.value !== '部分' && volume.value === '') {
+        volume.value = '480';
+        voucherDefault = true;
+      }
+    };
+    status.onchange = () => {
+      if (status.value === '部分' && (voucherDefault || (!enteredVolume && r.status !== '部分'))) {
+        volume.value = '';
+        voucherDefault = false;
+      }
+    };
+  }
   d.querySelector("form").onsubmit = async (e) => {
     e.preventDefault();
     try {
